@@ -1116,6 +1116,28 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
         <Card title="Income (Net)">
           <div className="space-y-2">{renderIncomeRows()}</div>
           <button onClick={() => addListItem(incomes, (l) => setAppState(s => ({...s, incomes: l})), {name: '', amount: 0, frequency: 'weekly'})} className="mt-4 text-sm text-[var(--title-color)] hover:opacity-80 transition-opacity font-semibold print:hidden">+ Add Income</button>
+          {(() => {
+            const monthlyIncome = (incomes || []).reduce((sum, i) => sum + getMonthlyAmount(i.amount, i.frequency), 0);
+            const fmt0 = (v: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(v);
+            return (
+              <div className="mt-5 rounded-2xl bg-gradient-to-br from-[#250B40] via-[#3B1470] to-[#5B21B6] p-4 text-white shadow-md print:bg-none print:text-black print:border print:border-gray-300">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70 print:text-gray-600">Total household income (after tax)</p>
+                    <p className="text-3xl font-black tracking-tight">{fmt0(monthlyIncome * 12)}<span className="text-base font-semibold text-white/70 print:text-gray-600"> a year</span></p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  {[['Weekly', monthlyIncome * 12 / 52], ['Fortnightly', monthlyIncome * 12 / 26], ['Monthly', monthlyIncome]].map(([label, v]) => (
+                    <div key={label as string} className="rounded-xl bg-white/10 py-2 print:bg-transparent">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70 print:text-gray-600">{label}</p>
+                      <p className="text-sm font-bold">{fmt0(v as number)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </Card>
         <HouseholdBenchmarks appState={appState} setAppState={setAppState} />
         <Card title={
