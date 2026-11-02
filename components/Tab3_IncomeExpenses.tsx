@@ -1008,6 +1008,11 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
               </select>
               <button onClick={() => removeListItem(incomes, (l) => setAppState(s => ({...s, incomes: l})), income.id)} className="col-span-1 text-red-400 hover:text-red-600 self-center justify-self-center text-2xl font-bold">×</button>
             </div>
+            {income.amount > 0 && income.frequency !== 'annually' && (
+              <p className="mt-1 ml-1 text-xs font-semibold text-[var(--title-color)] print:hidden">
+                = {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(getMonthlyAmount(income.amount, income.frequency) * 12)} a year
+              </p>
+            )}
              <div className="hidden print:grid print:grid-cols-12 col-span-12 text-black py-1 border-b border-gray-200">
                 <span className="col-span-6">{income.name}</span>
                 <span className="col-span-4 text-left">{formatCurrency(income.amount)}</span>
