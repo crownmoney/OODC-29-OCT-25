@@ -65,7 +65,6 @@ const lightPalette = {
 const LOCAL_STORAGE_KEY = 'crownMoneyCalculatorState';
 const SCENARIOS_STORAGE_KEY = 'crownMoneyCalculatorScenariosV2';
 
-const ZAPIER_WEBHOOK_URL = 'https://hooks.zapier.com/hooks/catch/23718141/u9jdfar/';
 
 const AWARDS = [
     "https://storage.googleapis.com/crown_money/Awards/2021_Better%20Business%20Awards_SA_Best%20Customer%20Service%20(Individual)_FINALIST.png",
@@ -492,7 +491,9 @@ const App: React.FC = () => {
         new_questions_summary: summaryNote,
         jsonData: jsonData
       };
-      await fetch(ZAPIER_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+      // Sent via the server (/api/zapier) so the webhook address stays private.
+      const res = await fetch('/api/zapier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
       setZapierStatus('success');
     } catch (error) {
       console.error("Zapier Sync Error:", error);
