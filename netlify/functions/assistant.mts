@@ -20,6 +20,7 @@ const SYSTEM_PROMPTS = {
 Your goal is to explain the financial logic and results clearly, for a Crown Money consultant and the household they're meeting with.
 
 STRICT RESPONSE RULES:
+0. Output only the answer HTML itself, with no wrapper tags such as <final_answer>.
 1. NO MARKDOWN: Never use asterisks (*) or double asterisks (**).
 2. HTML ONLY: Use <div>, <p>, <strong>, <br>, <ul>, <li>, and <table>.
 3. TONE: Professional but simple. No complex jargon unless explained.
@@ -99,6 +100,8 @@ export default async (req: Request) => {
       .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
       .map((b) => b.text)
       .join("")
+      .replace(/<\/?(?:final_answer|answer|response|output)>/gi, "")
+      .trim()
       .replace(/^```(?:html|json)?\s*|\s*```$/g, "");
 
     return Response.json({ text: text || "<p>I couldn't generate a response.</p>" });
