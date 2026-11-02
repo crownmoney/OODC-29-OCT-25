@@ -1,6 +1,6 @@
 // Household expenses by income.
 // Average monthly expenses exclude interest and other investment loan payments.
-// FFF = Food, Fuel & Fun. All figures are in Australian dollars.
+// FFF = Food, Fuel & Fun, per WEEK. All figures are in Australian dollars.
 // Source: figures supplied by Adam Santangelo.
 
 export type HouseholdType = 'couple' | 'single' | 'other';
@@ -10,6 +10,7 @@ export interface BenchmarkRow {
   household: HouseholdType;
   withKids: boolean;
   monthlyExpenses: number | null;
+  /** Weekly food, fun & fuel. */
   averageFFF: number | null;
   note?: 1 | 2 | 3;
 }

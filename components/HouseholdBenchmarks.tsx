@@ -23,7 +23,7 @@ const selectClasses = `custom-select ${inputClasses}`;
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 
-const ComparisonBar: React.FC<{ label: string; typical: number; actual: number; actualLabel: string }> = ({ label, typical, actual, actualLabel }) => {
+const ComparisonBar: React.FC<{ label: string; typical: number; actual: number; actualLabel: string; unit?: string }> = ({ label, typical, actual, actualLabel, unit = '' }) => {
   const max = Math.max(typical, actual, 1) * 1.1;
   const pct = (v: number) => `${Math.min(100, (v / max) * 100)}%`;
   const diff = actual - typical;
@@ -33,11 +33,11 @@ const ComparisonBar: React.FC<{ label: string; typical: number; actual: number; 
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <p className="text-xs text-white/70 print:text-gray-600">Typical {label.toLowerCase()}</p>
-          <p className="text-3xl font-black tracking-tight">{formatCurrency(typical)}</p>
+          <p className="text-3xl font-black tracking-tight">{formatCurrency(typical)}{unit && <span className="text-base font-semibold text-white/70 print:text-gray-600">{unit}</span>}</p>
         </div>
         <div className="text-right">
           <p className="text-xs text-white/70 print:text-gray-600">{actualLabel}</p>
-          <p className="text-lg font-bold">{formatCurrency(actual)}</p>
+          <p className="text-lg font-bold">{formatCurrency(actual)}{unit && <span className="text-sm font-medium text-white/70 print:text-gray-600">{unit}</span>}</p>
         </div>
       </div>
       <div className="mt-3 space-y-1.5 print:hidden" aria-hidden="true">
@@ -50,8 +50,8 @@ const ComparisonBar: React.FC<{ label: string; typical: number; actual: number; 
       </div>
       <p className="mt-2 text-xs text-white/80 print:text-gray-700">
         {Math.abs(diff) < 1 ? 'Right on the typical figure.'
-          : diff < 0 ? `${formatCurrency(-diff)} less than typical${lowBy > typical * 0.1 ? ', so it\'s worth double-checking nothing\'s been missed.' : '.'}`
-          : `${formatCurrency(diff)} more than typical.`}
+          : diff < 0 ? `${formatCurrency(-diff)}${unit} less than typical${lowBy > typical * 0.1 ? ', so it\'s worth double-checking nothing\'s been missed.' : '.'}`
+          : `${formatCurrency(diff)}${unit} more than typical.`}
       </p>
     </div>
   );
@@ -125,16 +125,14 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
               actualLabel="You've entered"
             />
             {match.averageFFF !== null && (
-              <div className="flex items-baseline justify-between gap-4 border-t border-white/15 pt-4 print:border-gray-200">
-                <div>
-                  <p className="text-xs text-white/70 print:text-gray-600">Typical food, fun &amp; fuel</p>
-                  <p className="text-2xl font-black">{formatCurrency(match.averageFFF)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-white/70 print:text-gray-600">You've entered</p>
-                  <p className="text-lg font-bold">{formatCurrency(monthlyFFF * 12 / 52)}<span className="text-sm font-medium text-white/70 print:text-gray-600">/week</span></p>
-                  <p className="text-xs text-white/60 print:text-gray-500">{formatCurrency(monthlyFFF)}/month</p>
-                </div>
+              <div className="border-t border-white/15 pt-4 print:border-gray-200">
+                <ComparisonBar
+                  label="Food, fun & fuel"
+                  typical={match.averageFFF}
+                  actual={monthlyFFF * 12 / 52}
+                  actualLabel="You've entered"
+                  unit="/week"
+                />
               </div>
             )}
           </div>
@@ -152,7 +150,7 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
               <tr className="text-left text-xs uppercase tracking-wider text-[var(--text-color-muted)]">
                 <th className="py-1 pr-2 font-semibold">Household type</th>
                 <th className="py-1 pr-2 font-semibold text-right">Monthly expenses</th>
-                <th className="py-1 font-semibold text-right">Food, fun &amp; fuel</th>
+                <th className="py-1 font-semibold text-right">Food, fun &amp; fuel / week</th>
               </tr>
             </thead>
             <tbody>
@@ -188,8 +186,9 @@ export const BenchmarkHint: React.FC<{ appState: AppState; kind: 'total' | 'fff'
     if (r.row.averageFFF === null) return null;
     return (
       <div className="mb-2 rounded-lg bg-[var(--title-color)]/5 border border-[var(--title-color)]/15 px-3 py-2 text-xs text-[var(--text-color)] print:hidden">
-        💡 Households like yours ({label}) typically spend about <strong>{formatCurrency(r.row.averageFFF)}</strong> on food, fun &amp; fuel.
-        {' '}You've entered <strong>{formatCurrency(r.clientMonthlyFFF * 12 / 52)}/week</strong> ({formatCurrency(r.clientMonthlyFFF)}/month).
+        💡 Households like yours ({label}) typically spend about <strong>{formatCurrency(r.row.averageFFF)} a week</strong> on food, fun &amp; fuel.
+        {' '}You've entered <strong>{formatCurrency(r.clientMonthlyFFF * 12 / 52)} a week</strong>.
+        {r.clientMonthlyFFF * 12 / 52 < r.row.averageFFF * 0.9 && <> That's lower than usual, so it's worth double-checking each item.</>}
       </div>
     );
   }

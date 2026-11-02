@@ -40,9 +40,11 @@ export const buildZapierFields = (appState: AppState) => {
     benchmark_income_bracket_source: b.bandIsAuto ? 'auto' : 'manual',
     benchmark_average_mortgage: b.band.averageMortgage,
     benchmark_monthly_expenses: benchmarkMonthly ?? '',
-    benchmark_average_fff: b.row.averageFFF ?? '',
+    benchmark_average_fff_weekly: b.row.averageFFF ?? '',
     client_monthly_living_expenses: money(b.clientMonthlyLiving),
     client_monthly_fff: money(b.clientMonthlyFFF),
+    client_weekly_fff: money(b.clientMonthlyFFF * 12 / 52),
+    client_vs_benchmark_fff_weekly: b.row.averageFFF === null ? '' : money(b.clientMonthlyFFF * 12 / 52 - b.row.averageFFF),
     client_vs_benchmark_monthly: diff === null ? '' : money(diff),
 
     // Car
@@ -84,7 +86,7 @@ export const buildZapierFields = (appState: AppState) => {
     benchmarkMonthly === null
       ? 'Benchmark: no figures for this household type'
       : `Benchmark monthly expenses: ${fmt(benchmarkMonthly)} | Client: ${fmt(b.clientMonthlyLiving)} (${diff! >= 0 ? fmt(diff!) + ' above' : fmt(-diff!) + ' below'})`,
-    b.row.averageFFF === null ? '' : `Benchmark average FFF: ${fmt(b.row.averageFFF)} | Client FFF: ${fmt(b.clientMonthlyFFF)}/month`,
+    b.row.averageFFF === null ? '' : `Benchmark FFF: ${fmt(b.row.averageFFF)}/week | Client FFF: ${fmt(b.clientMonthlyFFF * 12 / 52)}/week`,
     '',
     'CAR',
     costText('Maintenance', car.maintenance),
