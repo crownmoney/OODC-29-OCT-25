@@ -32,23 +32,29 @@ const ComparisonBar: React.FC<{ label: string; typical: number; actual: number; 
     <div>
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <p className="text-xs text-white/70 print:text-gray-600">Typical {label.toLowerCase()}</p>
-          <p className="text-3xl font-black tracking-tight">{formatCurrency(typical)}{unit && <span className="text-base font-semibold text-white/70 print:text-gray-600">{unit}</span>}</p>
+          <p className="text-xs text-[#583d77] print:text-gray-600">Typical {label.toLowerCase()}</p>
+          <p className="text-3xl font-black tracking-tight text-[var(--title-color)]">{formatCurrency(typical)}{unit && <span className="text-base font-semibold text-[#583d77] print:text-gray-600">{unit}</span>}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-white/70 print:text-gray-600">{actualLabel}</p>
-          <p className="text-lg font-bold">{formatCurrency(actual)}{unit && <span className="text-sm font-medium text-white/70 print:text-gray-600">{unit}</span>}</p>
+          <p className="text-xs text-[#583d77] print:text-gray-600">{actualLabel}</p>
+          <p className="text-lg font-bold">{formatCurrency(actual)}{unit && <span className="text-sm font-medium text-[#583d77] print:text-gray-600">{unit}</span>}</p>
         </div>
       </div>
       <div className="mt-3 space-y-1.5 print:hidden" aria-hidden="true">
-        <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
-          <div className="h-full rounded-full bg-white/80 transition-all duration-700" style={{ width: pct(typical) }} />
+        <div className="flex items-center gap-2">
+          <span className="w-14 text-[10px] font-bold uppercase tracking-wider text-[#583d77]">Typical</span>
+          <div className="h-2.5 flex-1 rounded-full bg-[#ece6f3] overflow-hidden">
+            <div className="h-full rounded-full bg-[var(--title-color)] transition-all duration-700" style={{ width: pct(typical) }} />
+          </div>
         </div>
-        <div className="h-2.5 rounded-full bg-white/10 overflow-hidden">
-          <div className={`h-full rounded-full transition-all duration-700 ${lowBy > typical * 0.1 ? 'bg-amber-300' : 'bg-emerald-300'}`} style={{ width: pct(actual) }} />
+        <div className="flex items-center gap-2">
+          <span className="w-14 text-[10px] font-bold uppercase tracking-wider text-[#583d77]">You</span>
+          <div className="h-2.5 flex-1 rounded-full bg-[#ece6f3] overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-700 ${lowBy > typical * 0.1 ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: pct(actual) }} />
+          </div>
         </div>
       </div>
-      <p className="mt-2 text-xs text-white/80 print:text-gray-700">
+      <p className="mt-2 text-xs text-[#583d77] print:text-gray-700">
         {Math.abs(diff) < 1 ? 'Right on the typical figure.'
           : diff < 0 ? `${formatCurrency(-diff)}${unit} less than typical${lowBy > typical * 0.1 ? ', so it\'s worth double-checking nothing\'s been missed.' : '.'}`
           : `${formatCurrency(diff)}${unit} more than typical.`}
@@ -108,12 +114,12 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
         Auto bracket uses the income entered above: {formatCurrency(annualIncome)} a year.
       </p>
 
-      <div className="mt-4 rounded-2xl bg-gradient-to-br from-[#250B40] via-[#3B1470] to-[#5B21B6] p-5 text-white shadow-lg print:bg-none print:text-black print:border print:border-gray-300">
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/70 print:text-gray-600">
+      <div className="mt-4 rounded-2xl bg-[#f8f6fb] border border-[#e6deee] p-5 text-[#250B40] print:bg-transparent print:text-black print:border-gray-300">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--title-color)] print:text-gray-600">
           Households like yours · {HOUSEHOLD_LABELS[household]} {hasKids ? 'with kids' : 'with no kids'} · {band.label}
         </p>
         {match.monthlyExpenses === null ? (
-          <p className="mt-3 text-sm text-white/90 print:text-black">
+          <p className="mt-3 text-sm text-[#583d77] print:text-black">
             We don't have a typical figure for this household type yet. Use your own numbers for this one.
           </p>
         ) : (
@@ -125,7 +131,7 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
               actualLabel="You've entered"
             />
             {match.averageFFF !== null && (
-              <div className="border-t border-white/15 pt-4 print:border-gray-200">
+              <div className="border-t border-[#e6deee] pt-4 print:border-gray-200">
                 <ComparisonBar
                   label="Food, fun & fuel"
                   typical={match.averageFFF}
@@ -137,7 +143,7 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
             )}
           </div>
         )}
-        <p className="mt-4 text-xs text-white/60 print:text-gray-500">Average mortgage in this bracket: {formatCurrency(band.averageMortgage)}</p>
+        <p className="mt-4 text-xs text-[#583d77] print:text-gray-500">Average mortgage in this bracket: {formatCurrency(band.averageMortgage)}</p>
       </div>
 
       <details className="mt-4 group print:hidden">
