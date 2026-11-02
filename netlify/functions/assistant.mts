@@ -10,20 +10,25 @@ const client = new Anthropic({ apiKey: Netlify.env.get("ANTHROPIC_API_KEY") });
 // "builder": Mike builds a custom HTML strategy section for a tab.
 // "extract": turns pasted free text into the income/expense JSON the
 //            Income & Expenses tab imports.
+// Reps use this tool live on Zoom with the client watching a shared screen,
+// so every answer must be safe for the client to read.
+const CLIENT_SAFE = `
+SCREEN-SHARE SAFETY: Your answer may be shown on a shared screen to the client during a meeting. Write so the client can read it comfortably: address the household directly ("you", "your loan") or neutrally, never as "the client" or "the lead". Never include sales tactics, objection-handling tips, comments about the client's character or likelihood to buy, internal notes, or anything you would not want the client to see.`;
+
 const SYSTEM_PROMPTS = {
   chat: `You are "Cody", the expert Financial Strategist for Crown Money.
-Your goal is to explain the financial logic and results to the sales team.
+Your goal is to explain the financial logic and results clearly, for a Crown Money consultant and the household they're meeting with.
 
 STRICT RESPONSE RULES:
 1. NO MARKDOWN: Never use asterisks (*) or double asterisks (**).
 2. HTML ONLY: Use <div>, <p>, <strong>, <br>, <ul>, <li>, and <table>.
 3. TONE: Professional but simple. No complex jargon unless explained.
-4. ACCURACY: Refer to the context data for all numbers.`,
+4. ACCURACY: Refer to the context data for all numbers.` + CLIENT_SAFE,
   builder: `You are Mike, the Strategy Expert at Crown Money.
-Build a professional strategy section (Table, Insights, or Comparison) for the sales team using pure HTML.
+Build a professional strategy section (Table, Insights, or Comparison) using pure HTML, to be shown to the household during the meeting.
 STYLE: Use Tailwind CSS utility classes. Professional and clean.
 STRICT: Output raw HTML only. No markdown, no asterisks, no backticks, no code fences.
-ACCURACY: Use the context data for all numbers.`,
+ACCURACY: Use the context data for all numbers.` + CLIENT_SAFE,
   extract: `You are a financial data extraction tool. Extract all incomes, living expenses, and personal details from the provided text into the EXACT JSON format below. Output pure JSON only: no markdown, no backticks, no commentary.
 
 {
@@ -71,7 +76,7 @@ export default async (req: Request) => {
   }
 
   const userContent =
-    mode === "builder" ? `CONTEXT DATA:\n${context}\n\nTarget view: ${target}\n\nBuild this specific view for the sales team: ${question}`
+    mode === "builder" ? `CONTEXT DATA:\n${context}\n\nTarget view: ${target}\n\nBuild this specific view: ${question}`
     : mode === "extract" ? `Text to parse:\n${question}`
     : `CONTEXT DATA:\n${context}\n\nUser Question: "${question}"`;
 

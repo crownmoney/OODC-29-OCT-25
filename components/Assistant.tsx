@@ -151,7 +151,7 @@ const Assistant: React.FC<AssistantProps> = ({ appState, calculations, activeTab
                             <div className="text-center py-8 opacity-60 flex flex-col items-center">
                                 <SparklesIcon className="h-10 w-10 mb-2 text-indigo-400" />
                                 <p className="font-bold">G'day! I'm Cody.</p>
-                                <p className="text-[11px] px-8 mt-1">Need help explaining these savings to the client? Just ask.</p>
+                                <p className="text-[11px] px-8 mt-1">Ask me anything about these numbers and I'll explain it simply.</p>
                             </div>
                         )}
                         {(messages || []).map((msg, i) => (

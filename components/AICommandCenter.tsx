@@ -96,7 +96,7 @@ const AICommandCenter: React.FC<Props> = ({ appState, calculations, isOpen, onCl
                             <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">What should I build?</label>
                             <textarea 
                                 className="w-full bg-white dark:bg-slate-800 border border-slate-200 rounded-xl text-sm px-4 py-3 min-h-[100px] focus:ring-2 ring-indigo-500 transition-all outline-none" 
-                                placeholder="Describe the table, graph, or insight you want to show the client..."
+                                placeholder="Describe the table, graph, or insight you'd like to see..."
                                 value={prompt}
                                 onChange={e => setPrompt(e.target.value)}
                             />

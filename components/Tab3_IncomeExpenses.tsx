@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { askAI } from '../services/api';
-import HouseholdBenchmarks from './HouseholdBenchmarks';
+import HouseholdBenchmarks, { BenchmarkHint } from './HouseholdBenchmarks';
 import CarAndInsurance from './CarAndInsurance';
 import { routeToManaged, syncManagedItems } from '../services/managedExpenses';
 import Modal from './common/Modal';
@@ -212,7 +212,7 @@ const FutureChangesSection: React.FC<FutureChangesSectionProps> = React.memo(({ 
                 if (change.managed) {
                     return (
                         <div key={change.id} className="p-3 rounded-lg border border-dashed border-[var(--border-color)] text-sm text-[var(--text-color-muted)] print:hidden">
-                            <span className="font-semibold text-[var(--text-color)]">{change.description}</span>: {formatCurrency(change.changeAmount)}/month from {change.startDate}. Edit in Hard Expenses › Car.
+                            <span className="font-semibold text-[var(--text-color)]">{change.description}</span>: {formatCurrency(change.changeAmount)}/month from {formatDateForDisplay(change.startDate)}. Edit in Hard Expenses › Car.
                         </div>
                     );
                 }
@@ -531,7 +531,7 @@ const FutureLumpSumSection: React.FC<FutureLumpSumSectionProps> = React.memo(({ 
                 if (lump.managed) {
                     return (
                         <div key={lump.id} className="p-3 rounded-lg border border-dashed border-[var(--border-color)] text-sm text-[var(--text-color-muted)] print:hidden">
-                            <span className="font-semibold text-[var(--text-color)]">{lump.description}</span>: {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(lump.amount)} on {lump.date}. Edit in Hard Expenses › Car.
+                            <span className="font-semibold text-[var(--text-color)]">{lump.description}</span>: {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(lump.amount)} on {formatDateForDisplay(lump.date)}. Edit in Hard Expenses › Car.
                         </div>
                     );
                 }
@@ -1133,7 +1133,9 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
                 </div>
             </div>
         }>
+            <BenchmarkHint appState={appState} kind="total" />
             <h4 className="text-md font-semibold text-[var(--text-color-muted)] mt-4 mb-2 print:text-black">FFF (Food, Fun, Fuel)</h4>
+            <BenchmarkHint appState={appState} kind="fff" />
             <div className="text-xs text-[var(--text-color-muted)] mb-1">e.g. Food expenses, dining out, vehicle fuel, entertainment</div>
             <div className="space-y-2">{renderExpenseRows('FFF')}</div>
             <button onClick={() => addListItem(expenses, (l) => setAppState(s => ({...s, expenses: l})), {name: '', amount: 0, category: 'FFF', frequency: 'weekly'})} className="mt-2 text-sm text-[var(--title-color)] hover:opacity-80 transition-opacity font-semibold print:hidden">+ Add FFF</button>

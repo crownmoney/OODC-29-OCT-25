@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppState, CarSetup, Frequency, InsuranceItem, RequiredCost } from '../types';
 import { DEFAULT_CAR_SETUP, DEFAULT_INSURANCES, syncManagedItems } from '../services/managedExpenses';
+import { Car, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Props {
   appState: AppState;
@@ -53,6 +54,24 @@ const CostRow: React.FC<{
   );
 };
 
+const SectionHeader: React.FC<{ icon: React.ElementType; title: string; subtitle: string; remaining: number; total: number }> = ({ icon: Icon, title, subtitle, remaining, total }) => (
+  <div className="flex items-start justify-between gap-3">
+    <div className="flex items-start gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--title-color)]/10 text-[var(--title-color)] print:hidden">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div>
+        <h4 className="text-md font-bold text-[var(--text-color)] print:text-black">{title}</h4>
+        <p className="text-xs text-[var(--text-color-muted)] print:hidden">{subtitle}</p>
+      </div>
+    </div>
+    <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider print:hidden ${remaining ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+      {remaining ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+      {remaining ? `${total - remaining} of ${total} answered` : 'All answered'}
+    </span>
+  </div>
+);
+
 const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
   const car = appState.carSetup ?? DEFAULT_CAR_SETUP;
   const insurances = appState.insurances ?? DEFAULT_INSURANCES;
@@ -75,11 +94,8 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
   return (
     <div className="space-y-6 mt-6">
       {/* Car */}
-      <div className="rounded-xl border-2 border-[var(--border-color)] p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-md font-semibold text-[var(--text-color)] print:text-black">Car</h4>
-          {carUnanswered > 0 && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 print:hidden">{carUnanswered} to answer</span>}
-        </div>
+      <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg-color)] p-5 space-y-3 shadow-sm">
+        <SectionHeader icon={Car} title="Car" subtitle="Include all cars in the household. Enter 0 if a cost doesn't apply." remaining={carUnanswered + (car.hasLease === null ? 1 : 0)} total={4} />
         <CostRow label="Car Maintenance" cost={car.maintenance} onChange={c => updateCar({ maintenance: c })} />
         <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} />
         <CostRow label="Car Rego" cost={car.rego} onChange={c => updateCar({ rego: c })} />
@@ -114,7 +130,7 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
         </div>
 
         <div className="pt-2 border-t border-dashed border-[var(--border-color)] print:hidden">
-          <p className="text-sm font-semibold">Do they have an existing car lease? <span className="text-amber-600">*</span></p>
+          <p className="text-sm font-semibold">Is there an existing car lease? <span className="text-amber-600">*</span></p>
           <div className="flex gap-4 mt-1">
             {([['Yes', true], ['No', false]] as const).map(([label, val]) => (
               <label key={label} className="flex items-center gap-1.5 text-sm cursor-pointer">
@@ -147,7 +163,7 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
                 />
               </div>
               <p className="sm:col-span-2 text-xs text-[var(--text-color-muted)]">
-                Ask roughly what the car is worth and what they expect the balloon to be. It's added as a one-off payment on that date.
+                A rough estimate is fine. It's included as a one-off payment on that date.
               </p>
             </div>
           )}
@@ -155,11 +171,8 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
       </div>
 
       {/* Insurance */}
-      <div className="rounded-xl border-2 border-[var(--border-color)] p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-md font-semibold text-[var(--text-color)] print:text-black">Insurance</h4>
-          {insUnanswered > 0 && <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 print:hidden">{insUnanswered} to answer</span>}
-        </div>
+      <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg-color)] p-5 space-y-3 shadow-sm">
+        <SectionHeader icon={ShieldCheck} title="Insurance" subtitle="Include every policy you hold. Enter 0 for any you don't have." remaining={insUnanswered} total={insurances.length + 1} />
         {insurances.slice(0, 2).map(i => (
           <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} />
         ))}
