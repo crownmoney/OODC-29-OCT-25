@@ -148,7 +148,7 @@ export const initialAppState: AppState = {
   debtRecyclingEnabled: true,
   debtRecyclingInvestmentRate: 8,
   debtRecyclingLoanInterestRate: 6.5,
-  marginalTaxRate: 32.5,
+  marginalTaxRate: 30,
   debtRecyclingPercentage: 100,
   notepadContent: '',
   incomeExpensesNotes: '',
@@ -196,7 +196,7 @@ export const emptyAppState: AppState = {
   debtRecyclingEnabled: true,
   debtRecyclingInvestmentRate: 8,
   debtRecyclingLoanInterestRate: 6.5,
-  marginalTaxRate: 32.5,
+  marginalTaxRate: 30,
   debtRecyclingPercentage: 100,
   notepadContent: '',
   incomeExpensesNotes: '',
@@ -329,7 +329,7 @@ const sanitizeAppState = (state: AppState): AppState => {
     }
     safeState.debtRecyclingInvestmentRate = ensureFinite(safeState.debtRecyclingInvestmentRate, 8);
     safeState.debtRecyclingLoanInterestRate = ensureFinite(safeState.debtRecyclingLoanInterestRate, 6.5);
-    safeState.marginalTaxRate = ensureFinite(safeState.marginalTaxRate, 32.5);
+    safeState.marginalTaxRate = ensureFinite(safeState.marginalTaxRate, 30);
     safeState.debtRecyclingPercentage = ensureFinite(safeState.debtRecyclingPercentage, 100);
     safeState.investmentPropertyTaxRate = ensureFinite(safeState.investmentPropertyTaxRate, 35);
 
