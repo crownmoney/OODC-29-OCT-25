@@ -316,6 +316,17 @@ const sanitizeAppState = (state: AppState): AppState => {
     safeState.idealRetirementAge = ensureFinite(safeState.idealRetirementAge, 65);
     safeState.propertyGrowthRate = ensureFinite(safeState.propertyGrowthRate, 3);
     safeState.numberOfKids = ensureFinite(safeState.numberOfKids, 0);
+
+    // Older scenarios carried combined sample rows for car rego and insurance.
+    // Those now have dedicated Car / Insurance sections, so drop the untouched
+    // sample rows (exact default values only) to avoid counting them twice.
+    if (!safeState.carSetup && Array.isArray(safeState.expenses)) {
+      const isOldSample = (e: ExpenseItem) =>
+        (e.name === 'Car Rego etc' && e.amount === 800 && e.frequency === 'annually') ||
+        (e.name === 'Insurance- Life/income/Pet' && e.amount === 200 && e.frequency === 'monthly') ||
+        (e.name === 'Insurance- Car/house/health' && e.amount === 1000 && e.frequency === 'annually');
+      safeState.expenses = safeState.expenses.filter(e => !isOldSample(e));
+    }
     safeState.debtRecyclingInvestmentRate = ensureFinite(safeState.debtRecyclingInvestmentRate, 8);
     safeState.debtRecyclingLoanInterestRate = ensureFinite(safeState.debtRecyclingLoanInterestRate, 6.5);
     safeState.marginalTaxRate = ensureFinite(safeState.marginalTaxRate, 32.5);
