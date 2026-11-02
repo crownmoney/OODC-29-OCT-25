@@ -21,13 +21,14 @@ const CostRow: React.FC<{
   cost: RequiredCost;
   onChange: (cost: RequiredCost) => void;
   hint?: string;
-}> = ({ label, cost, onChange, hint }) => {
-  const unanswered = cost.amount === null;
+  optional?: boolean;
+}> = ({ label, cost, onChange, hint, optional = false }) => {
+  const unanswered = cost.amount === null && !optional;
   return (
     <div>
       <div className="grid grid-cols-12 gap-2 items-center print:hidden">
         <label className="col-span-4 text-sm font-medium text-[var(--text-color)]">
-          {label} <span className="text-amber-600">*</span>
+          {label} {!optional && <span className="text-amber-600">*</span>}
         </label>
         <input
           type="number"
@@ -37,7 +38,7 @@ const CostRow: React.FC<{
           value={cost.amount ?? ''}
           onChange={e => onChange({ ...cost, amount: parseAmount(e.target.value) })}
           className={`col-span-4 ${inputBase} ${unanswered ? missing : ok}`}
-          placeholder="Enter amount (0 if none)"
+          placeholder={optional ? 'Optional' : '0 if none'}
         />
         <select
           aria-label={`${label} frequency`}
@@ -54,7 +55,7 @@ const CostRow: React.FC<{
   );
 };
 
-const SectionHeader: React.FC<{ icon: React.ElementType; title: string; subtitle: string; remaining: number; total: number }> = ({ icon: Icon, title, subtitle, remaining, total }) => (
+const SectionHeader: React.FC<{ icon: React.ElementType; title: string; subtitle: string; remaining?: number; total?: number }> = ({ icon: Icon, title, subtitle, remaining, total }) => (
   <div className="flex items-start justify-between gap-3">
     <div className="flex items-start gap-3">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--title-color)]/10 text-[var(--title-color)] print:hidden">
@@ -65,10 +66,10 @@ const SectionHeader: React.FC<{ icon: React.ElementType; title: string; subtitle
         <p className="text-xs text-[var(--text-color-muted)] print:hidden">{subtitle}</p>
       </div>
     </div>
-    <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider print:hidden ${remaining ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+    {total !== undefined && remaining !== undefined && <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider print:hidden ${remaining ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
       {remaining ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
       {remaining ? `${total - remaining} of ${total} answered` : 'All answered'}
-    </span>
+    </span>}
   </div>
 );
 
@@ -89,7 +90,6 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
     update({ insurances: insurances.map(i => (i.key === key ? { ...i, ...patch } : i)) });
 
   const carUnanswered = [car.maintenance, car.insurance, car.rego].filter(c => c.amount === null).length;
-  const insUnanswered = insurances.filter(i => i.amount === null).length + (car.insurance.amount === null ? 1 : 0);
 
   return (
     <div className="space-y-6 mt-6">
@@ -172,13 +172,13 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
 
       {/* Insurance */}
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg-color)] p-5 space-y-3 shadow-sm">
-        <SectionHeader icon={ShieldCheck} title="Insurance" subtitle="Include every policy you hold. Enter 0 for any you don't have." remaining={insUnanswered} total={insurances.length + 1} />
+        <SectionHeader icon={ShieldCheck} title="Insurance" subtitle="Optional. Add any policies you hold." />
         {insurances.slice(0, 2).map(i => (
-          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} />
+          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} optional />
         ))}
-        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} hint="same as in Car above" />
+        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} optional />
         {insurances.slice(2).map(i => (
-          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} />
+          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} optional />
         ))}
       </div>
     </div>

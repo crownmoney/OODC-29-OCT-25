@@ -96,9 +96,11 @@ export const buildZapierFields = (appState: AppState) => {
     `Existing car lease: ${car.hasLease === null ? 'not answered' : car.hasLease ? 'Yes' : 'No'}`,
     car.hasLease ? `Balloon payment: ${car.balloonAmount === null ? 'not entered' : fmt(car.balloonAmount)} on ${car.balloonDate || '(date not set)'}` : '',
     '',
-    'INSURANCE',
-    ...insurances.map(i => costText(i.name, i)),
-    costText('Car Insurance', car.insurance),
+    'INSURANCE (optional)',
+    ...(() => {
+      const entered = [...insurances, { name: 'Car Insurance', ...car.insurance }].filter(i => i.amount !== null);
+      return entered.length ? entered.map(i => costText(i.name, i)) : ['None entered'];
+    })(),
     '',
     'MONEY HEALTH CHECK',
     answeredCount ? `Score: ${yesCount}/10 (${tier}), ${answeredCount}/10 answered` : 'Not answered',
