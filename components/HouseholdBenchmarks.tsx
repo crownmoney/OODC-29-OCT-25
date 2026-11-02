@@ -111,7 +111,7 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
         </div>
       </div>
       <p className="text-xs text-[var(--text-color-muted)] mt-2 print:hidden">
-        Auto bracket uses the income entered above: {formatCurrency(annualIncome)} a year.
+        Brackets are before tax. Your {formatCurrency(r.annualNetIncome)} a year after tax is about <strong>{formatCurrency(annualIncome)} before tax</strong>.
       </p>
 
       <div className="mt-4 rounded-2xl bg-[#f8f6fb] border border-[#e6deee] p-5 text-[#250B40] print:bg-transparent print:text-black print:border-gray-300">

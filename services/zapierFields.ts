@@ -35,7 +35,8 @@ export const buildZapierFields = (appState: AppState) => {
     number_of_kids: appState.numberOfKids ?? 0,
     household_type: HOUSEHOLD_LABELS[b.household],
     household_category: householdLabel,
-    household_annual_income: money(b.annualIncome),
+    household_annual_income: money(b.annualNetIncome),
+    household_annual_income_before_tax_est: Math.round(b.annualIncome),
     benchmark_income_bracket: b.band.label,
     benchmark_income_bracket_source: b.bandIsAuto ? 'auto' : 'manual',
     benchmark_average_mortgage: b.band.averageMortgage,
@@ -82,7 +83,8 @@ export const buildZapierFields = (appState: AppState) => {
   const lines = [
     'OUT OF DEBT CALCULATOR – NEW QUESTIONS',
     `Household: ${householdLabel} (${appState.numberOfKids ?? 0} kids)`,
-    `Income bracket: ${b.band.label}${b.bandIsAuto ? ' (auto)' : ' (set manually)'}`,
+    `Income: ${fmt(b.annualNetIncome)} after tax (≈ ${fmt(b.annualIncome)} before tax)`,
+    `Income bracket (before tax): ${b.band.label}${b.bandIsAuto ? ' (auto)' : ' (set manually)'}`,
     benchmarkMonthly === null
       ? 'Benchmark: no figures for this household type'
       : `Benchmark monthly expenses: ${fmt(benchmarkMonthly)} | Client: ${fmt(b.clientMonthlyLiving)} (${diff! >= 0 ? fmt(diff!) + ' above' : fmt(-diff!) + ' below'})`,

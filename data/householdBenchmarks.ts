@@ -2,6 +2,9 @@
 // Average monthly expenses exclude interest and other investment loan payments.
 // FFF = Food, Fuel & Fun, per WEEK. All figures are in Australian dollars.
 // Source: figures supplied by Adam Santangelo.
+// Income brackets are household income BEFORE tax.
+
+import { grossFromNet } from '../services/tax';
 
 export type HouseholdType = 'couple' | 'single' | 'other';
 export type IncomeBandId = 'under-120k' | '120k-150k' | '150k-180k' | '180k-plus';
@@ -92,6 +95,9 @@ export interface BenchmarkResult {
   hasKids: boolean;
   band: IncomeBand;
   bandIsAuto: boolean;
+  /** Household income after tax, as entered. */
+  annualNetIncome: number;
+  /** Estimated household income before tax (each income grossed up separately). */
   annualIncome: number;
   row: BenchmarkRow;
   clientMonthlyLiving: number;
@@ -111,7 +117,11 @@ export const getBenchmarkResult = (
 ): BenchmarkResult => {
   const household: HouseholdType = state.householdType ?? ((state.people?.length ?? 0) >= 2 ? 'couple' : 'single');
   const hasKids = (state.numberOfKids ?? 0) > 0;
-  const annualIncome = (state.incomes ?? []).reduce((s, i) => s + toMonthly(i.amount, i.frequency), 0) * 12;
+  // Incomes are entered after tax; brackets are before tax. Each person is
+  // taxed separately, so gross up each income line on its own.
+  const netLines = (state.incomes ?? []).map(i => toMonthly(i.amount, i.frequency) * 12).filter(v => v > 0);
+  const annualNetIncome = netLines.reduce((s, v) => s + v, 0);
+  const annualIncome = netLines.reduce((s, v) => s + grossFromNet(v), 0);
   const chosen = INCOME_BANDS.find(b => b.id === state.benchmarkIncomeBand);
   const band = chosen ?? bandForIncome(annualIncome);
   const row = band.rows.find(r => r.household === household && r.withKids === hasKids)!;
@@ -121,6 +131,7 @@ export const getBenchmarkResult = (
     hasKids,
     band,
     bandIsAuto: !chosen,
+    annualNetIncome,
     annualIncome,
     row,
     clientMonthlyLiving: expenses.reduce((s, e) => s + toMonthly(e.amount, e.frequency), 0),

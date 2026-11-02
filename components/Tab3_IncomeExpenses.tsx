@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { askAI } from '../services/api';
 import HouseholdBenchmarks, { BenchmarkHint } from './HouseholdBenchmarks';
+import { grossFromNet, TAX_YEAR_LABEL } from '../services/tax';
 import CarAndInsurance from './CarAndInsurance';
 import { routeToManaged, syncManagedItems } from '../services/managedExpenses';
 import Modal from './common/Modal';
@@ -1123,6 +1124,10 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
           <button onClick={() => addListItem(incomes, (l) => setAppState(s => ({...s, incomes: l})), {name: '', amount: 0, frequency: 'weekly'})} className="mt-4 text-sm text-[var(--title-color)] hover:opacity-80 transition-opacity font-semibold print:hidden">+ Add Income</button>
           {(() => {
             const monthlyIncome = (incomes || []).reduce((sum, i) => sum + getMonthlyAmount(i.amount, i.frequency), 0);
+            const grossAnnual = (incomes || []).reduce((sum, i) => {
+              const netAnnual = getMonthlyAmount(i.amount, i.frequency) * 12;
+              return sum + (netAnnual > 0 ? grossFromNet(netAnnual) : 0);
+            }, 0);
             const fmt0 = (v: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 }).format(v);
             return (
               <div className="mt-5 rounded-2xl bg-[#f8f6fb] border border-[#e6deee] p-4 text-[#250B40] print:bg-transparent print:text-black print:border-gray-300">
@@ -1130,6 +1135,7 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--title-color)] print:text-gray-600">Total household income (after tax)</p>
                     <p className="text-3xl font-black tracking-tight text-[var(--title-color)]">{fmt0(monthlyIncome * 12)}<span className="text-base font-semibold text-[#583d77] print:text-gray-600"> a year</span></p>
+                    {grossAnnual > 0 && <p className="text-xs text-[#583d77] mt-0.5">About <strong>{fmt0(grossAnnual)}</strong> a year before tax (estimate, {TAX_YEAR_LABEL} rates)</p>}
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
