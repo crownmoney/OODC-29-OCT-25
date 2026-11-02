@@ -2,17 +2,21 @@
 import React, { useState } from 'react';
 
 interface TooltipProps {
-  text: string;
+  text?: React.ReactNode;
+  content?: React.ReactNode;
   children: React.ReactNode;
   position?: 'top' | 'bottom' | 'left' | 'right';
   className?: string;
+  innerClassName?: string;
 }
 
 const Tooltip: React.FC<TooltipProps> = ({
   text,
+  content,
   children,
   position = 'top',
-  className = ''
+  className = '',
+  innerClassName = ''
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -38,8 +42,8 @@ const Tooltip: React.FC<TooltipProps> = ({
     >
       {children}
       {isVisible && (
-        <div className={`absolute z-50 w-max max-w-xs p-2 text-xs font-medium text-white bg-slate-800 dark:bg-slate-700 rounded-lg shadow-lg animate-fade-in ${positionClasses[position]}`}>
-          {text}
+        <div className={`absolute z-50 w-max ${innerClassName || 'max-w-xs'} p-2 text-xs font-medium text-white bg-[#1e293b] rounded-lg shadow-lg animate-fade-in ${positionClasses[position]}`}>
+          {text || content}
           <div className={`absolute w-0 h-0 border-4 border-transparent ${arrowClasses[position]}`}></div>
         </div>
       )}

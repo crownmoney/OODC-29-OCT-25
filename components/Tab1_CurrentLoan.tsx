@@ -92,23 +92,23 @@ const DebtConsolidationSection: React.FC<Props> = ({ appState, setAppState }) =>
                                     </div>
                                      <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-color-muted)] mb-1">Amount Owing</label>
-                                        <input type="number" value={debt.amount} onChange={e => handleDebtChange(debt.id, 'amount', parseFloat(e.target.value) || 0)} className={inputClasses} placeholder="Amount"/>
+                                        <input type="number" step="1" value={debt.amount} onChange={e => handleDebtChange(debt.id, 'amount', parseFloat(e.target.value) || 0)} className={inputClasses} placeholder="Amount"/>
                                     </div>
                                 </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-color-muted)] mb-1">Interest Rate (%)</label>
-                                        <input type="number" value={debt.interestRate} onChange={e => handleDebtChange(debt.id, 'interestRate', parseFloat(e.target.value) || 0)} className={inputClasses}/>
+                                        <input type="number" step="0.01" value={debt.interestRate} onChange={e => handleDebtChange(debt.id, 'interestRate', parseFloat(e.target.value) || 0)} className={inputClasses}/>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-color-muted)] mb-1">Remaining Term (Years)</label>
-                                        <input type="number" value={debt.remainingTerm} onChange={e => handleDebtChange(debt.id, 'remainingTerm', parseFloat(e.target.value) || 0)} className={inputClasses}/>
+                                        <input type="number" step="1" value={debt.remainingTerm} onChange={e => handleDebtChange(debt.id, 'remainingTerm', parseFloat(e.target.value) || 0)} className={inputClasses}/>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                    <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-color-muted)] mb-1">Repayment</label>
-                                        <input type="number" value={debt.repayment} onChange={e => handleDebtChange(debt.id, 'repayment', parseFloat(e.target.value) || 0)} className={inputClasses}/>
+                                        <input type="number" step="1" value={debt.repayment} onChange={e => handleDebtChange(debt.id, 'repayment', parseFloat(e.target.value) || 0)} className={inputClasses}/>
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-color-muted)] mb-1">Frequency</label>
@@ -272,10 +272,18 @@ const Tab1_CurrentLoan: React.FC<Props> = ({ appState, setAppState, calculations
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
       {/* Left Column: Inputs */}
       <div className="flex flex-col gap-6">
-        <Card title="Loan Details">
+        <Card title={
+            <EditableField
+                label="Primary Property Name"
+                value={loan.propertyName || 'Primary Property'}
+                onSave={val => handleLoanChange('propertyName', val)}
+                inputClassName="text-lg font-bold text-[var(--title-color)]"
+                valueClassName="text-lg font-bold text-[var(--title-color)]"
+            />
+        }>
           <div className="space-y-6">
-            <SliderInput label="Property Value" value={loan.propertyValue} onChange={val => handleLoanChange('propertyValue', val)} min={100000} max={4000000} step={10000} unit="$" />
-            <SliderInput label="Loan Amount" value={loan.amount} onChange={val => handleLoanChange('amount', val)} min={50000} max={2000000} step={1000} unit="$" />
+            <SliderInput label="Property Value" value={loan.propertyValue} onChange={val => handleLoanChange('propertyValue', val)} min={100000} max={10000000} step={10000} unit="$" />
+            <SliderInput label="Loan Amount" value={loan.amount} onChange={val => handleLoanChange('amount', val)} min={50000} max={5000000} step={1000} unit="$" />
             <SliderInput label="Offset Balance" value={loan.offsetBalance || 0} onChange={val => handleLoanChange('offsetBalance', val)} min={0} max={loan.amount} step={1000} unit="$" />
             <div className="text-right -mt-4 text-sm text-[var(--text-color-muted)] print:hidden flex items-center justify-end gap-1">
               <span>Net Loan Amount:</span>
@@ -327,7 +335,7 @@ const Tab1_CurrentLoan: React.FC<Props> = ({ appState, setAppState, calculations
             </div>
         }>
           <div className="space-y-4">
-            {people.map((person, index) => (
+            {(people || []).map((person, index) => (
               <div key={person.id} className="flex gap-4 items-center">
                 <div className="p-3 bg-[var(--input-bg-color)] rounded-full text-[var(--title-color)]">
                     <UsersIcon className="h-6 w-6"/>
@@ -359,20 +367,32 @@ const Tab1_CurrentLoan: React.FC<Props> = ({ appState, setAppState, calculations
             <div className="grid grid-cols-2 gap-4 text-center">
                 <div className="p-4 bg-black/10 dark:bg-white/5 rounded-lg flex flex-col justify-center items-center">
                     <BanknotesIcon className="h-8 w-8 mb-2 text-[var(--chart-color-bank)]"/>
-                    <h4 className="text-sm text-[var(--text-color-muted)]">Total Interest</h4>
+                    <h4 className="text-sm text-[var(--text-color-muted)] flex items-center justify-center gap-1">Total Interest
+                        <Tooltip text="The total sum of interest you will pay to the bank over the lifetime of the loan, assuming interest rates and repayments remain the same.">
+                            <InfoIcon className="h-4 w-4 cursor-pointer"/>
+                        </Tooltip>
+                    </h4>
                     <p className="text-xl font-bold text-[var(--text-color)]">
                         {formatCurrency(bankLoanCalculation.totalInterest)}
                     </p>
                 </div>
                 <div className="p-4 bg-black/10 dark:bg-white/5 rounded-lg flex flex-col justify-center items-center">
                     <ChartBarIcon className="h-8 w-8 mb-2 text-[var(--chart-color-interest)]"/>
-                    <h4 className="text-sm text-[var(--text-color-muted)]">LVR</h4>
+                    <h4 className="text-sm text-[var(--text-color-muted)] flex items-center justify-center gap-1">LVR
+                        <Tooltip text="Loan-to-Value Ratio: The percentage of your property's value that is mortgaged. LVR over 80% usually incurs Lenders Mortgage Insurance.">
+                            <InfoIcon className="h-4 w-4 cursor-pointer"/>
+                        </Tooltip>
+                    </h4>
                     <p className={`text-xl font-bold ${lvr > 80 ? 'text-red-400' : 'text-[var(--text-color)]'}`}>
                         {lvr.toFixed(1)}%
                     </p>
                 </div>
                 <div className="col-span-2 p-4 bg-black/10 dark:bg-white/5 rounded-lg">
-                    <h4 className="text-sm text-[var(--text-color-muted)] mb-1">Estimated Payoff Time (Bank Scenario)</h4>
+                    <h4 className="text-sm text-[var(--text-color-muted)] mb-1 flex items-center justify-center gap-1">Estimated Payoff Time (Bank Scenario)
+                        <Tooltip text="Calculated by dynamically amortising your Net Loan Amount with your entered Interest Rate and Repayments until the balance is zero.">
+                            <InfoIcon className="h-4 w-4 cursor-pointer"/>
+                        </Tooltip>
+                    </h4>
                     <p className="text-3xl font-bold text-[var(--chart-color-bank)]">
                         {bankLoanCalculation.termInYears === Infinity ? 'Never' : `${bankLoanCalculation.termInYears.toFixed(1)} Years`}
                     </p>

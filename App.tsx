@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppState, Tab, ExpenseItem, CustomSection } from './types';
 import Tab1_CurrentLoan from './components/Tab1_CurrentLoan';
+import Tab_HealthCheck from './components/Tab_HealthCheck';
 import Tab2_InterestBreakdown from './components/Tab2_InterestBreakdown';
 import Tab3_IncomeExpenses from './components/Tab3_IncomeExpenses';
 import Tab_InvestmentProperties from './components/Tab_InvestmentProperties';
@@ -19,8 +20,8 @@ import AdvancedCalculator from './components/common/AdvancedCalculator';
 import LoginScreen from './components/LoginScreen';
 import Sidebar from './components/Sidebar';
 import { storageService, Scenario } from './services/storageService';
-import { auth } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { checkSession, login } from './services/api';
+import { buildZapierFields } from './services/zapierFields';
 import Notepad from './components/Notepad';
 import Assistant from './components/Assistant';
 import AICommandCenter from './components/AICommandCenter';
@@ -65,7 +66,6 @@ const LOCAL_STORAGE_KEY = 'crownMoneyCalculatorState';
 const SCENARIOS_STORAGE_KEY = 'crownMoneyCalculatorScenariosV2';
 
 const ZAPIER_WEBHOOK_URL = 'https://hooks.zapier.com/hooks/catch/23718141/u9jdfar/';
-const UPLOAD_PASSWORD = 'Crown';
 
 const AWARDS = [
     "https://storage.googleapis.com/crown_money/Awards/2021_Better%20Business%20Awards_SA_Best%20Customer%20Service%20(Individual)_FINALIST.png",
@@ -102,6 +102,7 @@ export const initialAppState: AppState = {
     repayment: 2500,
     frequency: 'monthly',
     offsetBalance: 50000,
+    propertyName: 'Primary Property',
   },
   people: [
     { id: 1, name: 'Person 1', age: 35 },
@@ -120,10 +121,7 @@ export const initialAppState: AppState = {
     { id: 6, name: 'Gifts', amount: 500, category: 'Soft Expenses', frequency: 'annually' },
     { id: 19, name: 'Clothes', amount: 100, category: 'Soft Expenses', frequency: 'monthly' },
     { id: 7, name: 'Gas etc', amount: 300, category: 'Hard Expenses', frequency: 'quarterly' },
-    { id: 8, name: 'Car Rego etc', amount: 800, category: 'Hard Expenses', frequency: 'annually' },
     { id: 9, name: 'Phone etc', amount: 150, category: 'Hard Expenses', frequency: 'monthly' },
-    { id: 10, name: 'Insurance- Life/income/Pet', amount: 200, category: 'Hard Expenses', frequency: 'monthly' },
-    { id: 11, name: 'Insurance- Car/house/health', amount: 1000, category: 'Hard Expenses', frequency: 'annually' },
     { id: 12, name: 'School/Education', amount: 0, category: 'Hard Expenses', frequency: 'annually' },
     { id: 13, name: 'Childcare', amount: 0, category: 'Hard Expenses', frequency: 'fortnightly' },
     { id: 14, name: 'Rates', amount: 500, category: 'Hard Expenses', frequency: 'quarterly' },
@@ -141,6 +139,7 @@ export const initialAppState: AppState = {
   clientPhone: '',
   investmentAmountPercentage: 100,
   investmentGrowthRate: 7,
+  investmentRate: 5,
   idealRetirementAge: 65,
   propertyGrowthRate: 3,
   payoffStrategy: 'snowball',
@@ -153,8 +152,14 @@ export const initialAppState: AppState = {
   marginalTaxRate: 32.5,
   debtRecyclingPercentage: 100,
   notepadContent: '',
+  incomeExpensesNotes: '',
   investmentCashflowScenario: 'crown',
   customSections: [],
+  investmentPropertyTaxRate: 35,
+  healthCheck: {
+    answers: {},
+    financialWorryNote: '',
+  },
 };
 
 export const emptyAppState: AppState = {
@@ -165,6 +170,7 @@ export const emptyAppState: AppState = {
     repayment: 0,
     frequency: 'monthly',
     offsetBalance: 0,
+    propertyName: 'Primary Property',
   },
   people: [
     { id: 1, name: 'Person 1', age: 30 },
@@ -181,6 +187,7 @@ export const emptyAppState: AppState = {
   clientPhone: '',
   investmentAmountPercentage: 100,
   investmentGrowthRate: 7,
+  investmentRate: 5,
   idealRetirementAge: 65,
   propertyGrowthRate: 3,
   payoffStrategy: 'snowball',
@@ -193,8 +200,14 @@ export const emptyAppState: AppState = {
   marginalTaxRate: 32.5,
   debtRecyclingPercentage: 100,
   notepadContent: '',
+  incomeExpensesNotes: '',
   investmentCashflowScenario: 'crown',
   customSections: [],
+  investmentPropertyTaxRate: 35,
+  healthCheck: {
+    answers: {},
+    financialWorryNote: '',
+  },
 };
 
 const zapierMessages = {
@@ -218,6 +231,7 @@ const sanitizeAppState = (state: AppState): AppState => {
     safeState.loan.interestRate = ensureFinite(safeState.loan.interestRate, 6.5);
     safeState.loan.repayment = ensureFinite(safeState.loan.repayment, 2500);
     safeState.loan.offsetBalance = ensureFinite(safeState.loan.offsetBalance, 0);
+    safeState.loan.propertyName = safeState.loan.propertyName || 'Primary Property';
 
     if (safeState.loan.interestRate > 20) safeState.loan.interestRate = 20;
     if (safeState.loan.interestRate < 0) safeState.loan.interestRate = 0;
@@ -242,6 +256,12 @@ const sanitizeAppState = (state: AppState): AppState => {
     }
     
     if (safeState.loan.repayment < 0) safeState.loan.repayment = 0;
+
+    // Sanitize People
+    safeState.people = (safeState.people || []).map(p => ({
+        ...p,
+        age: ensureFinite(p.age, 30)
+    }));
 
     // Sanitize Incomes
     safeState.incomes = (safeState.incomes || []).map(inc => ({
@@ -277,10 +297,23 @@ const sanitizeAppState = (state: AppState): AppState => {
         }))
     }));
 
+    // Sanitize Future Changes
+    safeState.futureChanges = (safeState.futureChanges || []).map(change => ({
+        ...change,
+        changeAmount: ensureFinite(change.changeAmount, 0)
+    }));
+
+    // Sanitize Future Lump Sums
+    safeState.futureLumpSums = (safeState.futureLumpSums || []).map(lumpSum => ({
+        ...lumpSum,
+        amount: ensureFinite(lumpSum.amount, 0)
+    }));
+
     // Other Global Values
     safeState.crownMoneyInterestRate = ensureFinite(safeState.crownMoneyInterestRate, 6.5);
     safeState.investmentAmountPercentage = ensureFinite(safeState.investmentAmountPercentage, 100);
     safeState.investmentGrowthRate = ensureFinite(safeState.investmentGrowthRate, 7);
+    safeState.investmentRate = ensureFinite(safeState.investmentRate, 5);
     safeState.idealRetirementAge = ensureFinite(safeState.idealRetirementAge, 65);
     safeState.propertyGrowthRate = ensureFinite(safeState.propertyGrowthRate, 3);
     safeState.numberOfKids = ensureFinite(safeState.numberOfKids, 0);
@@ -288,11 +321,18 @@ const sanitizeAppState = (state: AppState): AppState => {
     safeState.debtRecyclingLoanInterestRate = ensureFinite(safeState.debtRecyclingLoanInterestRate, 6.5);
     safeState.marginalTaxRate = ensureFinite(safeState.marginalTaxRate, 32.5);
     safeState.debtRecyclingPercentage = ensureFinite(safeState.debtRecyclingPercentage, 100);
+    safeState.investmentPropertyTaxRate = ensureFinite(safeState.investmentPropertyTaxRate, 35);
 
+    if (typeof safeState.incomeExpensesNotes === 'undefined') {
+        safeState.incomeExpensesNotes = '';
+    }
     if (!safeState.investmentCashflowScenario) {
         safeState.investmentCashflowScenario = 'crown';
     }
     if (!safeState.customSections) safeState.customSections = [];
+    if (!safeState.healthCheck) {
+        safeState.healthCheck = { answers: {}, financialWorryNote: '' };
+    }
 
     return safeState;
 };
@@ -302,7 +342,7 @@ const FooterTrustSignals = () => (
         <div className="text-center mb-12">
             <h3 className="text-sm font-black uppercase tracking-[0.3em] text-[var(--text-color-muted)] mb-4">Multi-Award Winning Strategy</h3>
             <div className="flex flex-wrap justify-center items-center gap-6 md:gap-12 px-4">
-                {AWARDS.map((src, idx) => (
+                {(AWARDS || []).map((src, idx) => (
                     <img key={idx} src={src} alt="Crown Money Award" className="h-20 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity drop-shadow-sm" />
                 ))}
             </div>
@@ -311,7 +351,7 @@ const FooterTrustSignals = () => (
         <div className="bg-white/50 backdrop-blur-sm py-12 rounded-3xl border border-[var(--border-color)] shadow-sm overflow-hidden">
             <h3 className="text-sm font-black uppercase tracking-[0.3em] text-center text-[var(--text-color-muted)] mb-8">As Featured In</h3>
             <div className="flex flex-wrap justify-center items-center gap-8 md:gap-x-16 md:gap-y-12 px-8 max-w-6xl mx-auto">
-                {MEDIA_LOGOS.map((src, idx) => (
+                {(MEDIA_LOGOS || []).map((src, idx) => (
                     <img key={idx} src={src} alt="Media Feature" className="trust-logo h-8 md:h-10 w-auto object-contain" />
                 ))}
             </div>
@@ -337,20 +377,9 @@ const App: React.FC = () => {
   const [infoToast, setInfoToast] = useState('');
   const [warningToast, setWarningToast] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
-
+  // Signed-in state comes from the server's HttpOnly session cookie.
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAuthenticated(true);
-        setIsGoogleAuth(true);
-      } else {
-        const isSessionAuth = sessionStorage.getItem('isAuthenticated') === 'true';
-        setIsAuthenticated(isSessionAuth);
-        setIsGoogleAuth(false);
-      }
-    });
-    return () => unsubscribe();
+    checkSession().then(ok => { if (ok) setIsAuthenticated(true); });
   }, []);
 
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
@@ -379,16 +408,6 @@ const App: React.FC = () => {
     document.body.style.backgroundColor = palette['--bg-color'];
     for (const [key, value] of Object.entries(palette)) {
         document.documentElement.style.setProperty(key, value as string);
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem('isAuthenticated') === 'true') {
-        setIsAuthenticated(true);
-      }
-    } catch (error) {
-        console.error("Could not access session storage:", error);
     }
   }, []);
 
@@ -430,20 +449,14 @@ const App: React.FC = () => {
     }
   }, [appState]);
 
+  const refreshScenarios = async () => {
+    const s = await storageService.getScenarios();
+    setSavedScenarios(s.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+  };
+
   // Load and sync scenarios using storageService
   useEffect(() => {
-    const loadInitial = async () => {
-      const s = await storageService.getScenarios();
-      setSavedScenarios(s.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
-    };
-    loadInitial();
-
-    // Subscribe to scenarios for real-time updates
-    const unsubscribe = storageService.subscribeToScenarios((scenarios) => {
-      setSavedScenarios(scenarios.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
-    });
-
-    return () => unsubscribe();
+    refreshScenarios();
   }, [isAuthenticated]);
 
   const debouncedAppState = useDebounce(appState, 500);
@@ -468,7 +481,17 @@ const App: React.FC = () => {
         return serializableData;
       };
       const jsonData = { appState: appState, calculations: getSerializableCalculations(calculations) };
-      const payload = { client_email: appState.clientEmail, client_phone: appState.clientPhone, jsonData: jsonData };
+      const { fields: newQuestionFields, summaryNote } = buildZapierFields(appState);
+      const payload = {
+        client_email: appState.clientEmail,
+        client_phone: appState.clientPhone,
+        notes: appState.incomeExpensesNotes || '',
+        income_expenses_notes: appState.incomeExpensesNotes || '',
+        // Household benchmarks, car and insurance answers as flat fields for HubSpot mapping
+        ...newQuestionFields,
+        new_questions_summary: summaryNote,
+        jsonData: jsonData
+      };
       await fetch(ZAPIER_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
       setZapierStatus('success');
     } catch (error) {
@@ -489,17 +512,20 @@ const App: React.FC = () => {
     setIsZapierPasswordModalOpen(true);
   };
 
-  const handleZapierPasswordSubmit = () => {
-    if (zapierPasswordInput === UPLOAD_PASSWORD) {
+  // The upload password is the app password, checked by the server.
+  const handleZapierPasswordSubmit = async () => {
+    const result = await login(zapierPasswordInput);
+    if (result.ok) {
         setZapierPasswordError('');
         setIsZapierPasswordModalOpen(false);
         executeZapierSync();
     } else {
-        setZapierPasswordError('Incorrect password. Please try again.');
+        setZapierPasswordError(result.error || 'Incorrect password. Please try again.');
     }
   };
 
   const tabs: { id: Tab; label: string; component: React.ReactNode }[] = [
+    { id: Tab.HealthCheck, label: 'Health Check', component: <Tab_HealthCheck appState={appState} setAppState={setAppState} calculations={calculations} /> },
     { id: Tab.CurrentLoan, label: 'Current Loan', component: <Tab1_CurrentLoan appState={appState} setAppState={setAppState} calculations={calculations} setWarningToast={setWarningToast} /> },
     { id: Tab.InterestBreakdown, label: 'Int Breakdown', component: <Tab2_InterestBreakdown appState={appState} setAppState={setAppState} calculations={calculations} setWarningToast={setWarningToast} /> },
     { id: Tab.InvestmentProperties, label: 'Investments', component: <Tab_InvestmentProperties appState={appState} setAppState={setAppState} calculations={calculations} setWarningToast={setWarningToast} /> },
@@ -563,6 +589,7 @@ const App: React.FC = () => {
       };
 
       await storageService.saveScenario(newScenario);
+      await refreshScenarios();
       setInfoToast(isAuthenticated ? 'Scenario saved to cloud!' : 'Scenario saved locally!');
       setIsSaveModalOpen(false);
   };
@@ -570,7 +597,7 @@ const App: React.FC = () => {
   const handleLoadScenario = (id: string) => {
       const scenarioToLoad = savedScenarios.find(s => s.id === id);
       if (scenarioToLoad) {
-          setAppState(scenarioToLoad.data);
+          setAppState(sanitizeAppState(scenarioToLoad.data));
           setIsLoadModalOpen(false);
           setInfoToast(`Scenario "${scenarioToLoad.name}" loaded.`);
       }
@@ -580,6 +607,7 @@ const App: React.FC = () => {
       const scenarioToDelete = savedScenarios.find(s => s.id === id);
       if (scenarioToDelete && window.confirm(`Are you sure you want to delete the scenario "${scenarioToDelete.name}"?`)) {
           await storageService.deleteScenario(id);
+          await refreshScenarios();
           setInfoToast('Scenario moved to trash.');
       }
   };
@@ -619,7 +647,7 @@ const App: React.FC = () => {
                   const newScenario: Scenario = {
                     id: crypto.randomUUID(),
                     name: scenarioName,
-                    data: { ...initialAppState, ...importedData },
+                    data: sanitizeAppState({ ...initialAppState, ...importedData }),
                     tags: [],
                     folderId: null,
                     isDeleted: false,
@@ -628,7 +656,10 @@ const App: React.FC = () => {
                     isFavorite: false
                   };
                   await storageService.saveScenario(newScenario);
-                  setInfoToast(`Scenario "${scenarioName}" imported!`);
+                  await refreshScenarios();
+                  setAppState(newScenario.data);
+                  setIsLoadModalOpen(false);
+                  setInfoToast(`Scenario "${scenarioName}" imported and loaded!`);
               }
           } catch (error) {
               console.error("Failed to import scenario:", error);
@@ -640,25 +671,14 @@ const App: React.FC = () => {
 
   const primaryClientEmail = appState.clientEmail;
   const buttonBaseClasses = "p-2 bg-[var(--card-bg-color)] hover:bg-[var(--input-bg-color)] rounded-md flex items-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--bg-color)] focus:ring-[var(--title-color)]";
-  const APP_PASSWORD = 'Crown';
-
-  const handleLoginSuccess = () => {
-    try { 
-      sessionStorage.setItem('isAuthenticated', 'true'); 
-      setIsAuthenticated(true); 
-    } 
-    catch (error) { 
-      console.error("Could not write to session storage:", error); 
-      setIsAuthenticated(true); 
-    }
-  };
+  const handleLoginSuccess = () => setIsAuthenticated(true);
 
   const handleLoadFromSidebar = (data: AppState) => {
     setAppState(data);
     setInfoToast('Scenario loaded successfully!');
   };
 
-  if (!isAuthenticated) return <LoginScreen onLoginSuccess={handleLoginSuccess} correctPassword={APP_PASSWORD} />;
+  if (!isAuthenticated) return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
 
   const currentTabLabel = tabs.find(t => t.id === activeTab)?.label || 'General';
 
@@ -704,10 +724,23 @@ const App: React.FC = () => {
         </header>
 
         <main className="app-container relative bg-[var(--card-bg-color)] backdrop-blur-sm p-4 sm:p-6 rounded-2xl shadow-2xl border border-[var(--border-color)] print:bg-transparent print:p-0 print:shadow-none print:border-none">
+          {(calculations?.crownMoneyLoanCalculation?.errorMessage || calculations?.bankLoanCalculation?.errorMessage) && (
+             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm text-red-800 flex items-start gap-3 no-print animate-fade-in">
+                 <div className="mt-0.5">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                         <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                     </svg>
+                 </div>
+                 <div>
+                     <h3 className="text-sm font-bold">Calculation Warning</h3>
+                     <p className="text-sm mt-1">{calculations.crownMoneyLoanCalculation?.errorMessage || calculations.bankLoanCalculation?.errorMessage}</p>
+                 </div>
+             </div>
+          )}
           <nav className="app-nav mb-6 print:hidden">
             <div className="border-b border-[var(--border-color)]">
               <div className="-mb-px flex flex-wrap space-x-2 sm:space-x-4 justify-center" aria-label="Tabs">
-                {tabs.map((tab) => (
+                {(tabs || []).map((tab) => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`${activeTab === tab.id ? 'border-[var(--title-color)] text-[var(--title-color)]' : 'border-transparent text-[var(--text-color-muted)] hover:border-gray-400 hover:text-[var(--text-color)]'} whitespace-nowrap border-b-2 py-3 px-1 text-sm sm:text-base font-medium transition-colors focus:outline-none`} aria-current={activeTab === tab.id ? 'page' : undefined}>{tab.label}</button>
                 ))}
               </div>
@@ -715,7 +748,7 @@ const App: React.FC = () => {
           </nav>
           
           <div className="app-main mt-4">
-             {tabs.map(tab => ( 
+             {(tabs || []).map(tab => ( 
                 <div key={tab.id} className={`${activeTab === tab.id ? 'active-tab-content' : 'hidden'} ${tab.id === Tab.Reports ? 'printable' : ''}`}>
                     {tab.component}
                     
@@ -809,12 +842,12 @@ const App: React.FC = () => {
 
       <Modal isOpen={isLoadModalOpen} onClose={() => setIsLoadModalOpen(false)} title="Load or Manage Scenarios">
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-              {savedScenarios.length === 0 ? ( <p className="text-center text-sm text-[var(--text-color-muted)] py-8">No saved scenarios yet. Use the "Save" button to create one.</p> ) : (
+              {savedScenarios.filter(s => !s.isDeleted).length === 0 ? ( <p className="text-center text-sm text-[var(--text-color-muted)] py-8">No saved scenarios yet. Use the "Save" button to create one.</p> ) : (
                   <ul className="space-y-3">
-                      {savedScenarios.map(scenario => (
+                      {(savedScenarios.filter(s => !s.isDeleted)).map(scenario => (
                           <li key={scenario.id} className="p-3 bg-black/10 dark:bg-white/5 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                              <div className="flex-grow">
-                                  <p className="font-semibold text-[var(--text-color)]">{scenario.name}</p>
+                              <div className="flex-grow min-w-0">
+                                  <p className="font-semibold text-[var(--text-color)] truncate" title={scenario.name}>{scenario.name}</p>
                                   <p className="text-xs text-[var(--text-color-muted)]">Last modified: {new Date(scenario.updatedAt).toLocaleString()}</p>
                               </div>
                               <div className="flex-shrink-0 flex items-center gap-2 flex-wrap">
@@ -834,7 +867,7 @@ const App: React.FC = () => {
           </div>
       </Modal>
       
-      <Notepad isOpen={isNotepadOpen} onClose={() => setIsNotepadOpen(false)} content={appState.notepadContent} setContent={(newContent) => setAppState(prev => ({...prev, notepadContent: newContent}))} />
+      <Notepad isOpen={isNotepadOpen} onClose={() => setIsNotepadOpen(false)} noteKey={appState.clientEmail || 'main_note'} />
       </div>
     </div>
   );

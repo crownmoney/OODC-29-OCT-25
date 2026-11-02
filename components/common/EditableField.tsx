@@ -8,6 +8,8 @@ interface EditableFieldProps {
   className?: string;
   type?: string;
   placeholder?: string;
+  inputClassName?: string;
+  valueClassName?: string;
 }
 
 const EditableField: React.FC<EditableFieldProps> = ({
@@ -16,7 +18,9 @@ const EditableField: React.FC<EditableFieldProps> = ({
   label,
   className = '',
   type = 'text',
-  placeholder = ''
+  placeholder = '',
+  inputClassName = '',
+  valueClassName = ''
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState(String(value));
@@ -59,12 +63,12 @@ const EditableField: React.FC<EditableFieldProps> = ({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="w-full bg-[var(--input-bg-color)] p-1 rounded border border-[var(--input-border-color)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--title-color)]"
+          className={`w-full bg-[var(--input-bg-color)] p-1 rounded border border-[var(--input-border-color)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--title-color)] ${inputClassName}`}
         />
       ) : (
         <div
           onClick={() => setIsEditing(true)}
-          className="cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 p-1 rounded transition-colors text-sm min-h-[1.5rem]"
+          className={`cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 p-1 rounded transition-colors text-sm min-h-[1.5rem] ${valueClassName}`}
         >
           {value || <span className="text-[var(--text-color-muted)] italic">{placeholder || 'Click to edit'}</span>}
         </div>

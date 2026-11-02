@@ -1,5 +1,6 @@
 
 export enum Tab {
+  HealthCheck = 'health-check',
   CurrentLoan = 'current-loan',
   InterestBreakdown = 'interest-breakdown',
   InvestmentProperties = 'investment-properties',
@@ -12,6 +13,13 @@ export enum Tab {
   Summary = 'summary',
 }
 
+export interface HealthCheckState {
+  answers: Record<number, boolean | null>;
+  debtFreeAgeCurrentPath?: number | string;
+  retirementTargetAge?: number | string;
+  financialWorryNote?: string;
+}
+
 export type Frequency = 'weekly' | 'fortnightly' | 'monthly' | 'annually' | 'quarterly';
 export type LoanFrequency = 'weekly' | 'fortnightly' | 'monthly';
 
@@ -20,6 +28,34 @@ export interface ExpenseItem {
   name: string;
   amount: number;
   category: string;
+  frequency: Frequency;
+  isImported?: boolean;
+  /** Set on items generated from the Car / Insurance sections; edited there, not in the generic list. */
+  managed?: 'car' | 'insurance';
+}
+
+/** A cost the agent must answer; null = not answered yet (0 is a valid answer). */
+export interface RequiredCost {
+  amount: number | null;
+  frequency: Frequency;
+}
+
+export interface CarSetup {
+  maintenance: RequiredCost;
+  insurance: RequiredCost;
+  rego: RequiredCost;
+  /** Car costs don't exist yet; they start on futureStartDate. */
+  isFuture: boolean;
+  futureStartDate: string;
+  hasLease: boolean | null;
+  balloonAmount: number | null;
+  balloonDate: string;
+}
+
+export interface InsuranceItem {
+  key: 'health' | 'house' | 'pet' | 'income' | 'life' | 'other';
+  name: string;
+  amount: number | null;
   frequency: Frequency;
 }
 
@@ -41,6 +77,7 @@ export interface IncomeItem {
   name: string;
   amount: number;
   frequency: Frequency;
+  isImported?: boolean;
 }
 
 export interface OtherDebt {
@@ -66,15 +103,18 @@ export interface FutureChange {
   amount?: number;
   startYear?: number;
   duration?: number;
+  managed?: 'car' | 'insurance';
 }
 
 export interface FutureLumpSum {
   id: number;
   amount: number;
   date: string;
+  description?: string;
   type: 'income' | 'expense';
   name?: string;
   year?: number;
+  managed?: 'car' | 'insurance';
 }
 
 export interface InvestmentPropertyExpense {
@@ -86,21 +126,26 @@ export interface InvestmentPropertyExpense {
 
 export interface InvestmentProperty {
   id: number;
-  name: string;
-  value: number;
+  name?: string;
+  value?: number;
   propertyValue?: number;
   loanAmount: number;
   interestRate: number;
-  rent: number;
+  rent?: number;
   rentalIncome: number;
   rentalIncomeFrequency: Frequency;
   expenses: InvestmentPropertyExpense[];
-  growthRate: number;
+  growthRate?: number;
   rentalGrowthRate?: number;
   address?: string;
+  purchaseDate?: string;
   isFuture?: boolean;
   crownSettings?: {
-    interestRate: number;
+    interestRate?: number;
+    loanType?: 'P&I' | 'IO';
+    repayment?: number;
+    interestOnlyTerm?: number;
+    repaymentFrequency?: Frequency;
   };
   offsetBalance?: number;
   repayment: number;
@@ -108,6 +153,7 @@ export interface InvestmentProperty {
   loanType?: 'P&I' | 'IO';
   loanTerm?: number;
   interestOnlyTerm?: number;
+  loanStartDate?: string;
 }
 
 export interface LoanDetails {
@@ -120,6 +166,7 @@ export interface LoanDetails {
   loanType?: 'P&I' | 'IO';
   loanTerm?: number;
   interestOnlyTerm?: number;
+  propertyName?: string;
 }
 
 export interface AmortizationDataPoint {
@@ -144,6 +191,7 @@ export interface LoanSummary {
   payoffYears?: number;
   monthlyRepayment?: number;
   amortizationSchedule: AmortizationDataPoint[];
+  errorMessage?: string;
 }
 
 export interface AppState {
@@ -160,6 +208,7 @@ export interface AppState {
   clientPhone: string;
   investmentAmountPercentage: number;
   investmentGrowthRate: number;
+  investmentRate: number;
   idealRetirementAge: number;
   propertyGrowthRate: number;
   payoffStrategy: string;
@@ -172,7 +221,14 @@ export interface AppState {
   marginalTaxRate: number;
   debtRecyclingPercentage: number;
   notepadContent: string;
-  investmentCashflowScenario: string;
+  incomeExpensesNotes: string;
+  investmentCashflowScenario: 'bank' | 'crown' | string;
   customSections: CustomSection[];
+  investmentPropertyTaxRate: number;
+  healthCheck?: HealthCheckState;
+  householdType?: 'couple' | 'single' | 'other';
+  carSetup?: CarSetup;
+  insurances?: InsuranceItem[];
+  benchmarkIncomeBand?: 'under-120k' | '120k-150k' | '150k-180k' | '180k-plus';
 }
 

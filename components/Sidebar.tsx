@@ -10,11 +10,9 @@ import {
   FileText, 
   MoreVertical, 
   Edit2, 
-  Share2, 
   X, 
   Tag, 
   Calendar,
-  Settings,
   LogOut,
   ChevronDown,
   ChevronUp,
@@ -24,22 +22,10 @@ import {
   Star,
   Check,
   MoreHorizontal,
-  UserPlus,
   Move
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserIcon } from './common/IconComponents';
-import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
-import { 
-  signInWithPopup, 
-  signOut, 
-  User, 
-  updateProfile, 
-  updatePassword,
-  EmailAuthProvider,
-  reauthenticateWithCredential
-} from 'firebase/auth';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { logout } from '../services/api';
 import { storageService, Scenario, Folder as FolderType } from '../services/storageService';
 import { AppState } from '../types';
 import { clsx, type ClassValue } from 'clsx';
@@ -57,30 +43,16 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [sharingScenario, setSharingScenario] = useState<Scenario | null>(null);
-  const [shareEmail, setShareEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordMessage, setPasswordMessage] = useState('');
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      setUser(u);
-      loadData();
-    });
-    return () => unsubscribe();
+    loadData();
   }, []);
 
   const loadData = async () => {
@@ -90,31 +62,9 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
     setFolders(f);
   };
 
-  useEffect(() => {
-    if (user) {
-      const unsubScenarios = storageService.subscribeToScenarios(setScenarios);
-      const unsubFolders = storageService.subscribeToFolders(setFolders);
-      return () => {
-        unsubScenarios();
-        unsubFolders();
-      };
-    }
-  }, [user]);
-
-  const handleLogin = async () => {
-    setIsLoginLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login failed. Please ensure you have configured Firebase correctly.');
-    } finally {
-      setIsLoginLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
-    await signOut(auth);
+    await logout();
+    window.location.reload();
   };
 
   const filteredScenarios = useMemo(() => {
@@ -190,223 +140,11 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
     setEditingId(null);
   };
 
-  const handleShare = async () => {
-    if (!sharingScenario || !shareEmail.trim()) return;
-    
-    const sharedWith = [...(sharingScenario.sharedWith || []), shareEmail.trim()];
-    const updated = { ...sharingScenario, sharedWith };
-    await storageService.saveScenario(updated);
-    setSharingScenario(null);
-    setShareEmail('');
-    alert(`Scenario shared with ${shareEmail}`);
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !user.email) return;
-    setIsChangingPassword(true);
-    setPasswordError('');
-    setPasswordMessage('');
-
-    try {
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      await updatePassword(user, newPassword);
-      setPasswordMessage('Password updated successfully!');
-      setNewPassword('');
-      setCurrentPassword('');
-    } catch (err: any) {
-      console.error('Password change error:', err);
-      setPasswordError(err.message);
-    } finally {
-      setIsChangingPassword(false);
-    }
-  };
-
   return (
     <div className={cn(
       "fixed left-0 top-0 h-full bg-white border-r border-[#E6DEEE] transition-all duration-500 ease-in-out z-50 flex flex-col shadow-2xl",
       isOpen ? "w-80" : "w-0"
     )}>
-      {/* Settings Modal */}
-      <AnimatePresence>
-        {isSettingsOpen && user && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl border border-[#E6DEEE]"
-            >
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black text-[#250B40]">Account Settings</h2>
-                <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-[#F8F8F8] rounded-full transition-colors">
-                  <X className="w-6 h-6 text-[#583d77]" />
-                </button>
-              </div>
-              
-              <div className="space-y-8">
-                <div className="flex flex-col items-center">
-                  <div className="relative group">
-                    <img src={user.photoURL || ''} alt="" className="w-32 h-32 rounded-full border-4 border-[#5B21B6] shadow-xl transition-transform group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-black/20 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Edit2 className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                  <p className="mt-4 text-sm text-[#583d77] font-bold uppercase tracking-widest">Google Profile</p>
-                </div>
-                
-                <div className="space-y-3">
-                  <label className="text-xs font-black text-[#250B40] uppercase tracking-widest">Display Name</label>
-                  <input 
-                    type="text" 
-                    defaultValue={user.displayName || ''} 
-                    onBlur={async (e) => {
-                      try {
-                        await updateProfile(user, { displayName: e.target.value });
-                        await setDoc(doc(db, 'users', user.uid), {
-                          displayName: e.target.value,
-                          updatedAt: new Date().toISOString()
-                        }, { merge: true });
-                      } catch (err) {
-                        console.error('Update profile error:', err);
-                      }
-                    }}
-                    className="w-full px-5 py-3 bg-[#F8F8F8] border border-[#d9cde5] rounded-2xl focus:ring-4 focus:ring-[#5B21B6]/10 focus:border-[#5B21B6] outline-none transition-all font-bold text-[#250B40]"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-xs font-black text-[#250B40] uppercase tracking-widest">Email Address</label>
-                  <div className="w-full px-5 py-3 bg-[#F8F8F8] border border-[#d9cde5] rounded-2xl opacity-60 cursor-not-allowed font-medium text-[#583d77]">
-                    {user.email}
-                  </div>
-                </div>
-
-                {user.providerData.some(p => p.providerId === 'password') && (
-                  <div className="pt-6 border-t border-[#E6DEEE] space-y-4">
-                    <h3 className="text-sm font-black text-[#250B40] uppercase tracking-widest">Change Password</h3>
-                    <form onSubmit={handleChangePassword} className="space-y-3">
-                      <input 
-                        type="password" 
-                        placeholder="Current Password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        className="w-full px-5 py-3 bg-[#F8F8F8] border border-[#d9cde5] rounded-2xl focus:ring-4 focus:ring-[#5B21B6]/10 focus:border-[#5B21B6] outline-none transition-all font-medium"
-                        required
-                      />
-                      <input 
-                        type="password" 
-                        placeholder="New Password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-5 py-3 bg-[#F8F8F8] border border-[#d9cde5] rounded-2xl focus:ring-4 focus:ring-[#5B21B6]/10 focus:border-[#5B21B6] outline-none transition-all font-medium"
-                        required
-                      />
-                      <button 
-                        type="submit"
-                        disabled={isChangingPassword}
-                        className="w-full py-3 bg-[#F8F8F8] border-2 border-[#E6DEEE] text-[#5B21B6] rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#E6DEEE] transition-all disabled:opacity-50"
-                      >
-                        {isChangingPassword ? 'Updating...' : 'Update Password'}
-                      </button>
-                      {passwordError && <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest">{passwordError}</p>}
-                      {passwordMessage && <p className="text-[10px] text-green-600 font-bold uppercase tracking-widest">{passwordMessage}</p>}
-                    </form>
-                  </div>
-                )}
-              </div>
-
-              <button 
-                onClick={() => setIsSettingsOpen(false)}
-                className="w-full mt-10 py-4 bg-[#5B21B6] text-white rounded-2xl font-black text-lg hover:bg-[#4c1d95] transition-all shadow-lg hover:shadow-xl active:scale-95"
-              >
-                Done
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Share Modal */}
-      <AnimatePresence>
-        {sharingScenario && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl border border-[#E6DEEE]"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black text-[#250B40]">Share Scenario</h2>
-                <button onClick={() => setSharingScenario(null)} className="p-2 hover:bg-[#F8F8F8] rounded-full">
-                  <X className="w-6 h-6 text-[#583d77]" />
-                </button>
-              </div>
-              
-              <p className="text-[#583d77] text-sm mb-6">Share "<span className="font-bold text-[#250B40]">{sharingScenario.name}</span>" with a team member.</p>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-[#250B40] uppercase tracking-widest">Team Member Email</label>
-                  <div className="relative">
-                    <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#583d77]" />
-                    <input 
-                      type="email" 
-                      placeholder="colleague@crown.money"
-                      value={shareEmail}
-                      onChange={(e) => setShareEmail(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3 bg-[#F8F8F8] border border-[#d9cde5] rounded-2xl focus:ring-4 focus:ring-[#5B21B6]/10 focus:border-[#5B21B6] outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                {sharingScenario.sharedWith && sharingScenario.sharedWith.length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-[#250B40] uppercase tracking-widest">Shared with</label>
-                    <div className="space-y-2">
-                      {sharingScenario.sharedWith.map(email => (
-                        <div key={email} className="flex items-center justify-between p-3 bg-[#F8F8F8] rounded-xl border border-[#E6DEEE]">
-                          <span className="text-sm font-medium text-[#250B40]">{email}</span>
-                          <button 
-                            onClick={async () => {
-                              const sharedWith = sharingScenario.sharedWith?.filter(e => e !== email);
-                              await storageService.saveScenario({ ...sharingScenario, sharedWith });
-                              setSharingScenario({ ...sharingScenario, sharedWith });
-                            }}
-                            className="text-red-500 hover:text-red-700 p-1"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button 
-                onClick={handleShare}
-                className="w-full mt-8 py-4 bg-[#5B21B6] text-white rounded-2xl font-black text-lg hover:bg-[#4c1d95] transition-all shadow-lg"
-              >
-                Send Invite
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Toggle Button */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
@@ -430,39 +168,8 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
         >
           {/* Header / User Profile */}
           <div className="p-6 border-b border-[#E6DEEE] bg-gradient-to-br from-[#F8F8F8] to-white">
-            {user ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <img src={user.photoURL || ''} alt="" className="w-12 h-12 rounded-2xl border-2 border-[#5B21B6] shadow-lg" />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className="text-base font-black text-[#250B40] truncate leading-tight">{user.displayName}</p>
-                    <p className="text-[10px] text-[#583d77] font-bold uppercase tracking-widest truncate mt-0.5">{user.email}</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setIsSettingsOpen(true)} 
-                  className="p-2.5 hover:bg-[#E6DEEE] rounded-2xl transition-all active:scale-90"
-                >
-                  <Settings className="w-6 h-6 text-[#5B21B6]" />
-                </button>
-              </div>
-            ) : (
-              <button 
-                onClick={handleLogin}
-                disabled={isLoginLoading}
-                className="w-full py-4 px-6 bg-[#5B21B6] text-white rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-[#4c1d95] transition-all shadow-lg active:scale-95 disabled:opacity-50"
-              >
-                {isLoginLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <UserIcon className="w-6 h-6" />
-                )}
-                {isLoginLoading ? 'Connecting...' : 'Login with Google'}
-              </button>
-            )}
+            <p className="text-base font-black text-[#250B40] leading-tight">Saved Scenarios</p>
+            <p className="text-[10px] text-[#583d77] font-bold uppercase tracking-widest mt-1">Stored on this device</p>
           </div>
 
           {/* Search & Actions */}
@@ -513,7 +220,7 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
               <div className="mt-8">
                 <p className="px-4 text-[10px] font-black text-[#583d77] uppercase tracking-[0.2em] mb-3 opacity-50">Folders</p>
                 <div className="space-y-1">
-                  {folders.map(folder => (
+                  {(folders || []).map(folder => (
                     <div key={folder.id} className="group relative">
                       <button 
                         onClick={() => { setActiveFolderId(folder.id); setShowDeleted(false); }}
@@ -572,7 +279,7 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
               
               <div className="space-y-3">
                 <AnimatePresence mode="popLayout">
-                  {filteredScenarios.map(scenario => (
+                  {(filteredScenarios || []).map(scenario => (
                     <motion.div 
                       layout
                       initial={{ opacity: 0, y: 10 }}
@@ -632,13 +339,6 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
                           ) : (
                             <>
                               <button 
-                                onClick={(e) => { e.stopPropagation(); setSharingScenario(scenario); }}
-                                className="p-2 hover:bg-[#E6DEEE] text-[#5B21B6] rounded-xl transition-colors"
-                                title="Share"
-                              >
-                                <Share2 className="w-4 h-4" />
-                              </button>
-                              <button 
                                 onClick={(e) => { e.stopPropagation(); handleStartRename(scenario.id, scenario.name); }}
                                 className="p-2 hover:bg-[#E6DEEE] text-[#5B21B6] rounded-xl transition-colors"
                                 title="Rename"
@@ -672,7 +372,7 @@ const Sidebar: React.FC<SidebarProps> = ({ appState, setAppState, onLoadScenario
           </div>
 
           {/* Footer / Logout */}
-          {user && (
+          {(
             <div className="p-6 border-t border-[#E6DEEE] bg-[#F8F8F8]/50">
               <button 
                 onClick={handleLogout}
