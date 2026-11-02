@@ -16,6 +16,17 @@ export const getMonthlyAmount = (amount: number, frequency: Frequency): number =
     }
 };
 
+export const BirdAnnualAmount = (amount: number, frequency: Frequency): number => {
+    switch (frequency) {
+        case 'weekly': return amount * 52;
+        case 'fortnightly': return amount * 26;
+        case 'monthly': return amount * 12;
+        case 'quarterly': return amount * 4;
+        case 'annually': return amount;
+        default: return amount;
+    }
+};
+
 export const getAnnualAmount = (amount: number, frequency: Frequency): number => {
     switch (frequency) {
         case 'weekly': return amount * 52;
@@ -39,11 +50,8 @@ export const calculatePIPayment = (principal: number, annualRate: number, termYe
         case 'annually': n = termYears; c = rate; break;
         default: return 0;
     }
-    if (n <= 0) return 0;
     if (c === 0) return principal / n;
-    const pow = Math.pow(1 + c, n);
-    if (!isFinite(pow)) return principal * c; // Interest only if power is too large
-    return principal * (c * pow) / (pow - 1);
+    return principal * (c * Math.pow(1 + c, n)) / (Math.pow(1 + c, n) - 1);
 };
 
 export const calculateIOPayment = (principal: number, annualRate: number, frequency: Frequency): number => {
@@ -295,26 +303,24 @@ export const useMortgageCalculations = (appState: AppState) => {
         return { investmentPropertiesNetCashflow: bankInvestmentNetCashflow, bankInvestmentNetCashflow, crownInvestmentNetCashflow, totalMonthlyIncome: bankTotalMonthlyIncome, totalMonthlyExpenses: bankTotalMonthlyExpenses, totalMonthlyLivingExpenses: baseLivingExpenses, surplus: bankSurplus, bankSurplus, crownSurplus };
     }, [incomes, expenses, investmentProperties, otherDebts]);
 
-    // NEW: Calculate the status quo interest cost for other debts
-    const otherDebtsBreakdown = useMemo(() => {
+    // NEW: Calculate the status quo interest cost for other debts and their schedules
+    const otherDebtsCalculations = useMemo(() => {
         return (otherDebts || []).map(debt => {
-            const requiredRepayment = calculatePIPayment(debt.amount, debt.interestRate, debt.remainingTerm, debt.frequency);
             const bankCalc = calculateAmortization({
                 amount: debt.amount,
                 interestRate: debt.interestRate,
-                repayment: requiredRepayment,
+                repayment: debt.repayment,
                 frequency: debt.frequency,
                 offsetBalance: 0,
                 loanTerm: debt.remainingTerm,
                 loanType: 'P&I'
             }, { strategy: 'bank' });
 
-            // For comparison, calculate what this same debt would cost at the Crown rate over the same term
-            const crownRequiredRepayment = calculatePIPayment(debt.amount, crownMoneyInterestRate, debt.remainingTerm, debt.frequency);
+            // Calculate what this debt would cost at Crown rate over the SAME term for comparison
             const crownCalc = calculateAmortization({
                 amount: debt.amount,
                 interestRate: crownMoneyInterestRate,
-                repayment: crownRequiredRepayment,
+                repayment: calculatePIPayment(debt.amount, crownMoneyInterestRate, debt.remainingTerm, debt.frequency),
                 frequency: debt.frequency,
                 offsetBalance: 0,
                 loanTerm: debt.remainingTerm,
@@ -322,22 +328,17 @@ export const useMortgageCalculations = (appState: AppState) => {
             }, { strategy: 'bank' });
 
             return {
-                name: debt.name,
-                amount: debt.amount,
-                bankInterest: bankCalc.totalInterest === Infinity ? 0 : bankCalc.totalInterest,
-                crownInterest: crownCalc.totalInterest === Infinity ? 0 : crownCalc.totalInterest,
-                savings: (bankCalc.totalInterest === Infinity ? 0 : bankCalc.totalInterest) - (crownCalc.totalInterest === Infinity ? 0 : crownCalc.totalInterest),
-                bankRate: debt.interestRate,
-                crownRate: crownMoneyInterestRate,
-                term: debt.remainingTerm,
-                frequency: debt.frequency
+                debt,
+                bankCalc,
+                crownCalc,
+                interestSaved: (bankCalc.totalInterest === Infinity ? 0 : bankCalc.totalInterest) - (crownCalc.totalInterest === Infinity ? 0 : crownCalc.totalInterest)
             };
         });
     }, [otherDebts, crownMoneyInterestRate]);
 
     const otherDebtsStatusQuoInterest = useMemo(() => {
-        return otherDebtsBreakdown.reduce((total, d) => total + d.bankInterest, 0);
-    }, [otherDebtsBreakdown]);
+        return otherDebtsCalculations.reduce((total, calc) => total + (calc.bankCalc.totalInterest === Infinity ? 0 : calc.bankCalc.totalInterest), 0);
+    }, [otherDebtsCalculations]);
 
     const bankLoanCalculation = useMemo(() => {
         const netLoan = { ...loan, amount: Math.max(0, loan.amount - (loan.offsetBalance || 0)), offsetBalance: 0 };
@@ -462,7 +463,17 @@ export const useMortgageCalculations = (appState: AppState) => {
             const bankInvSchedules = investmentLoanCalculations.investmentPayoffSchedule.map((p: any) => ({ id: p.propertyId, schedule: p.bank.amortizationSchedule }));
             const crownInvSchedules = investmentLoanCalculations.investmentPayoffSchedule.map((p: any) => ({ id: p.propertyId, schedule: p.crown.amortizationSchedule }));
             
-            const maxMonths = Math.ceil(Math.max(bankPrimarySchedule.length, crownPrimarySchedule.length, ...bankInvSchedules.map(s => s.schedule.length), ...crownInvSchedules.map(s => s.schedule.length), 1));
+            // NEW: Add other debts schedules for Bank scenario
+            const bankOtherDebtsSchedules = otherDebtsCalculations.map(c => ({ id: c.debt.id, schedule: c.bankCalc.amortizationSchedule }));
+
+            const maxMonths = Math.ceil(Math.max(
+                bankPrimarySchedule.length, 
+                crownPrimarySchedule.length, 
+                ...bankInvSchedules.map(s => s.schedule.length), 
+                ...crownInvSchedules.map(s => s.schedule.length),
+                ...bankOtherDebtsSchedules.map(s => s.schedule.length),
+                1
+            ));
             if (!isFinite(maxMonths) || maxMonths === 0) return [];
 
             const primaryStartDebt = loan.amount - (loan.offsetBalance || 0);
@@ -480,11 +491,13 @@ export const useMortgageCalculations = (appState: AppState) => {
                 // Bank Line: Combined Total Debt
                 let bankTotal = (bankPrimarySchedule[index]?.remainingBalance ?? 0);
                 bankInvSchedules.forEach(inv => bankTotal += (inv.schedule[index]?.remainingBalance ?? 0));
+                // NEW: Include other debts in Bank Total
+                bankOtherDebtsSchedules.forEach(debt => bankTotal += (debt.schedule[index]?.remainingBalance ?? 0));
                 
                 const point: any = { 
                     year: month / 12, 
                     age: youngestPersonAge + (month / 12), 
-                    'Bank': month === 0 ? (primaryStartDebt + totalInvStartDebt) : bankTotal,
+                    'Bank': month === 0 ? (primaryStartDebt + totalInvStartDebt + otherDebtsStartDebt) : bankTotal,
                 };
 
                 // Sequential Attack Path Logic: Sawtooth Pattern
@@ -589,5 +602,5 @@ export const useMortgageCalculations = (appState: AppState) => {
         return primaryNetDebt + otherDebtTotal + invNetDebtTotal;
     }, [loan.amount, loan.offsetBalance, otherDebts, investmentProperties]);
 
-    return { getMonthlyAmount, getAnnualAmount, calculatePIPayment, calculateIOPayment, people, ...budgetCalculations, otherDebtsStatusQuoInterest, otherDebtsBreakdown, bankLoanCalculation, crownMoneyLoanCalculation, investmentLoanCalculations, ...wealthCalculations, debtRecyclingCalculation, reportCalculations, netWorthProjection, totalDebtData, totalInitialDebt, totalInitialNetDebt };
+    return { getMonthlyAmount, getAnnualAmount, calculatePIPayment, calculateIOPayment, people, ...budgetCalculations, otherDebtsCalculations, otherDebtsStatusQuoInterest, bankLoanCalculation, crownMoneyLoanCalculation, investmentLoanCalculations, ...wealthCalculations, debtRecyclingCalculation, reportCalculations, netWorthProjection, totalDebtData, totalInitialDebt, totalInitialNetDebt };
 };

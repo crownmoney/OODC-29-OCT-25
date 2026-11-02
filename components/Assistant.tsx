@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { askAI } from '../services/api';
 import { AppState, AmortizationDataPoint } from '../types';
 import { SparklesIcon, PaperAirplaneIcon, XMarkIcon } from './common/IconComponents';
 
@@ -21,7 +22,7 @@ const formatCurrency = (value: number, digits = 0) => {
 const generateAssistantContext = (appState: AppState, calculations: any, activeTab: string): string => {
     const { 
         loan, people, investmentProperties, idealRetirementAge, payoffStrategy,
-        crownMoneyInterestRate, otherDebts, incomes, expenses
+        crownMoneyInterestRate, otherDebts
     } = appState;
     const { 
         bankLoanCalculation, 
@@ -29,19 +30,13 @@ const generateAssistantContext = (appState: AppState, calculations: any, activeT
         investmentLoanCalculations,
         otherDebtsStatusQuoInterest,
         totalMonthlyIncome,
-        totalMonthlyExpenses,
         surplus,
-        totalInitialDebt,
-        totalInitialPropertyValues,
-        initialLVR
     } = calculations;
 
     const assetBreakdown = investmentLoanCalculations.investmentPayoffSchedule.map((inv: any) => {
         const prop = investmentProperties.find(p => p.id === inv.propertyId);
         return {
             address: prop?.address || 'Unknown',
-            value: formatCurrency(prop?.propertyValue || 0),
-            loan: formatCurrency(prop?.loanAmount || 0),
             interestSaved: formatCurrency(inv.bank.totalInterest - inv.crown.totalInterest),
             yearsSaved: `${(inv.bank.termInYears - inv.crown.termInYears).toFixed(1)} years`
         };
@@ -49,30 +44,17 @@ const generateAssistantContext = (appState: AppState, calculations: any, activeT
 
     const summary = {
         currentTab: activeTab,
-        borrowers: people.map(p => `${p.name} (Age: ${p.age})`),
         primaryLoan: {
-            amount: formatCurrency(loan.amount),
-            interestRate: `${loan.interestRate}%`,
-            repayment: `${formatCurrency(loan.repayment)} ${loan.frequency}`,
-            offset: formatCurrency(loan.offsetBalance || 0),
-            lvr: `${initialLVR.toFixed(1)}%`,
             mortgageInterestSaved: formatCurrency(bankLoanCalculation.totalInterest - (crownMoneyLoanCalculation.totalInterest - otherDebtsStatusQuoInterest)),
             consolidationInterestSaved: formatCurrency(otherDebtsStatusQuoInterest),
             totalSavings: formatCurrency(bankLoanCalculation.totalInterest + otherDebtsStatusQuoInterest - crownMoneyLoanCalculation.totalInterest),
             bankYears: bankLoanCalculation.termInYears.toFixed(1),
             crownYears: crownMoneyLoanCalculation.termInYears.toFixed(1)
         },
-        consolidatedDebts: otherDebts.map(d => ({
-            name: d.name,
-            amount: formatCurrency(d.amount),
-            rate: `${d.interestRate}%`,
-            repayment: `${formatCurrency(d.repayment)} ${d.frequency}`
-        })),
-        totalInitialDebt: formatCurrency(totalInitialDebt),
+        consolidatedDebtsCount: otherDebts.length,
         portfolioBreakdown: assetBreakdown,
         budget: {
             monthlyIncome: formatCurrency(totalMonthlyIncome),
-            monthlyExpenses: formatCurrency(totalMonthlyExpenses),
             monthlySurplus: formatCurrency(surplus)
         },
         strategy: payoffStrategy,
@@ -106,18 +88,8 @@ const Assistant: React.FC<AssistantProps> = ({ appState, calculations, activeTab
 
         try {
             const context = generateAssistantContext(appState, calculations, activeTab);
-
-            const res = await fetch('/api/assistant', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ context, question: userInput }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || typeof data.text !== 'string') {
-                throw new Error(data.error || `Assistant request failed (${res.status})`);
-            }
-
-            setMessages([...newMessages, { sender: 'ai', text: data.text }]);
+            const text = await askAI({ mode: 'chat', context, question: userInput });
+            setMessages([...newMessages, { sender: 'ai', text }]);
 
         } catch (error) {
             console.error(error);
