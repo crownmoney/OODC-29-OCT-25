@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { AppState, AmortizationDataPoint } from '../types';
 import { SparklesIcon, PaperAirplaneIcon, XMarkIcon } from './common/IconComponents';
 
@@ -106,31 +105,19 @@ const Assistant: React.FC<AssistantProps> = ({ appState, calculations, activeTab
         setIsLoading(true);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
             const context = generateAssistantContext(appState, calculations, activeTab);
 
-            const prompt = `
-You are "Cody", the expert Financial Strategist for Crown Money.
-Your goal is to explain the financial logic and results to the sales team.
-
-STRICT RESPONSE RULES:
-1. NO MARKDOWN: Never use asterisks (*) or double asterisks (**).
-2. HTML ONLY: Use <div>, <p>, <strong>, <br>, <ul>, <li>, and <table>.
-3. TONE: Professional but simple. No complex jargon unless explained.
-4. ACCURACY: Refer to the context for all numbers.
-
-CONTEXT DATA:
-${context}
-
-User Question: "${userInput}"
-`;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
+            const res = await fetch('/api/assistant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ context, question: userInput }),
             });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || typeof data.text !== 'string') {
+                throw new Error(data.error || `Assistant request failed (${res.status})`);
+            }
 
-            setMessages([...newMessages, { sender: 'ai', text: response.text || '<p>I couldn\'t generate a response.</p>' }]);
+            setMessages([...newMessages, { sender: 'ai', text: data.text }]);
 
         } catch (error) {
             console.error(error);
