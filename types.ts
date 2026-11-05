@@ -1,6 +1,7 @@
 
 export enum Tab {
   HealthCheck = 'health-check',
+  CrownSystem = 'crown-system',
   CurrentLoan = 'current-loan',
   InterestBreakdown = 'interest-breakdown',
   InvestmentProperties = 'investment-properties',

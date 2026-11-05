@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AppState, Tab, ExpenseItem, CustomSection } from './types';
 import Tab1_CurrentLoan from './components/Tab1_CurrentLoan';
 import Tab_HealthCheck from './components/Tab_HealthCheck';
+import Tab_CrownSystem from './components/Tab_CrownSystem';
 import Tab2_InterestBreakdown from './components/Tab2_InterestBreakdown';
 import Tab3_IncomeExpenses from './components/Tab3_IncomeExpenses';
 import Tab_InvestmentProperties from './components/Tab_InvestmentProperties';
@@ -547,6 +548,7 @@ const App: React.FC = () => {
     { id: Tab.DebtRecycling, label: 'Debt Recycling', component: <Tab_DebtRecycling appState={appState} setAppState={setAppState} calculations={calculations} /> },
     { id: Tab.In2Wealth, label: 'In 2 Wealth', component: <Tab_In2Wealth appState={appState} setAppState={setAppState} calculations={calculations} /> },
     { id: Tab.Reports, label: 'Reports', component: <Tab_Reports appState={appState} setAppState={setAppState} calculations={calculations} /> },
+    { id: Tab.CrownSystem, label: 'The Crown Money System - How It Works', component: <Tab_CrownSystem /> },
     { id: Tab.Summary, label: 'Summary', component: <Tab5_Summary appState={appState} setAppState={setAppState} calculations={calculations} onUploadRecord={handleOpenZapierUploadModal} zapierStatus={zapierStatus} /> },
   ];
   
