@@ -2,6 +2,7 @@
 export enum Tab {
   HealthCheck = 'health-check',
   CrownSystem = 'crown-system',
+  DNQ = 'dnq',
   CurrentLoan = 'current-loan',
   InterestBreakdown = 'interest-breakdown',
   InvestmentProperties = 'investment-properties',
@@ -58,6 +59,14 @@ export interface InsuranceItem {
   name: string;
   amount: number | null;
   frequency: Frequency;
+}
+
+/** Consultant's override of the automatic DNQ verdict. */
+export interface DnqOverride {
+  verdict: 'qualifies' | 'qualifies_future' | 'dnq';
+  reason: string;
+  by?: string;
+  at: string; // ISO timestamp
 }
 
 export interface CustomSection {
@@ -229,6 +238,7 @@ export interface AppState {
   healthCheck?: HealthCheckState;
   householdType?: 'couple' | 'single' | 'other';
   carSetup?: CarSetup;
+  dnqOverride?: DnqOverride;
   insurances?: InsuranceItem[];
   benchmarkIncomeBand?: 'under-120k' | '120k-150k' | '150k-180k' | '180k-plus';
 }

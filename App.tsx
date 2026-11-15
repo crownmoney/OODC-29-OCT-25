@@ -4,6 +4,7 @@ import { AppState, Tab, ExpenseItem, CustomSection } from './types';
 import Tab1_CurrentLoan from './components/Tab1_CurrentLoan';
 import Tab_HealthCheck from './components/Tab_HealthCheck';
 import Tab_CrownSystem from './components/Tab_CrownSystem';
+import Tab_DNQ from './components/Tab_DNQ';
 import Tab2_InterestBreakdown from './components/Tab2_InterestBreakdown';
 import Tab3_IncomeExpenses from './components/Tab3_IncomeExpenses';
 import Tab_InvestmentProperties from './components/Tab_InvestmentProperties';
@@ -23,6 +24,7 @@ import Sidebar from './components/Sidebar';
 import { storageService, Scenario } from './services/storageService';
 import { checkSession, login } from './services/api';
 import { buildZapierFields } from './services/zapierFields';
+import { assessDnq } from './services/dnq';
 import Notepad from './components/Notepad';
 import Assistant from './components/Assistant';
 import AICommandCenter from './components/AICommandCenter';
@@ -491,7 +493,9 @@ const App: React.FC = () => {
         const { getMonthlyAmount, getAnnualAmount, calculatePIPayment, calculateIOPayment, wealthCalcs, ...serializableData } = calcs;
         return serializableData;
       };
-      const jsonData = { appState: appState, calculations: getSerializableCalculations(calculations) };
+      // DNQ details go to HubSpot directly (below), not through Zapier.
+      const { dnqOverride: _dnq, ...appStateForZapier } = appState;
+      const jsonData = { appState: appStateForZapier, calculations: getSerializableCalculations(calculations) };
       const { fields: newQuestionFields, summaryNote } = buildZapierFields(appState);
       const payload = {
         client_email: appState.clientEmail,
@@ -512,6 +516,26 @@ const App: React.FC = () => {
       setZapierStatus('error');
     } finally {
       setTimeout(() => setZapierStatus('idle'), 4000);
+    }
+    // Separately, post the DNQ assessment as a note on the client's HubSpot deal.
+    postDnqNoteToHubSpot();
+  };
+
+  const postDnqNoteToHubSpot = async () => {
+    setInfoToast('Adding the DNQ note to HubSpot…');
+    try {
+      const assessment = assessDnq(appState, calculations);
+      const res = await fetch('/api/hubspot-note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HubSpot note failed (${res.status})`);
+      setInfoToast(`DNQ note added to HubSpot deal${data.dealName ? `: ${data.dealName}` : ''}`);
+    } catch (error) {
+      console.error('HubSpot DNQ note error:', error);
+      setWarningToast(`The DNQ note wasn't added to HubSpot. ${error instanceof Error ? error.message : ''}`);
     }
   };
   
@@ -550,6 +574,7 @@ const App: React.FC = () => {
     { id: Tab.Reports, label: 'Reports', component: <Tab_Reports appState={appState} setAppState={setAppState} calculations={calculations} /> },
     { id: Tab.CrownSystem, label: 'The Crown Money System - How It Works', component: <Tab_CrownSystem /> },
     { id: Tab.Summary, label: 'Summary', component: <Tab5_Summary appState={appState} setAppState={setAppState} calculations={calculations} onUploadRecord={handleOpenZapierUploadModal} zapierStatus={zapierStatus} /> },
+    { id: Tab.DNQ, label: 'DNQ Check', component: <Tab_DNQ appState={appState} setAppState={setAppState} calculations={calculations} /> },
   ];
   
   const handleResetApp = () => {
