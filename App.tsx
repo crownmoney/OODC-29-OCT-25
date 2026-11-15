@@ -525,13 +525,17 @@ const App: React.FC = () => {
     setInfoToast('Adding the DNQ note to HubSpot…');
     try {
       const assessment = assessDnq(appState, calculations);
-      const res = await fetch('/api/hubspot-note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HubSpot note failed (${res.status})`);
+      const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null });
+      // Zapier may still be creating the HubSpot contact/deal, so retry a few times.
+      let res: Response | null = null;
+      let data: any = {};
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt) await new Promise(r => setTimeout(r, 10_000));
+        res = await fetch('/api/hubspot-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+        data = await res.json().catch(() => ({}));
+        if (res.ok || !data.retry) break;
+      }
+      if (!res || !res.ok) throw new Error(data.error || `HubSpot note failed (${res?.status})`);
       setInfoToast(`DNQ note added to HubSpot deal${data.dealName ? `: ${data.dealName}` : ''}`);
     } catch (error) {
       console.error('HubSpot DNQ note error:', error);

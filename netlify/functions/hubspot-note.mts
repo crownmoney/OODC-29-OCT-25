@@ -12,7 +12,6 @@ import { hasValidSession } from "../lib/session.mts";
 
 const API = () => Netlify.env.get("HUBSPOT_API_BASE") || "https://api.hubapi.com";
 const NOTE_TO_DEAL = 214; // HubSpot-defined association type: note -> deal
-const DEAL_RETRY_DELAYS_MS = [0, 8000, 10000, 12000]; // Zapier may still be creating the deal
 
 class HubSpotError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -147,14 +146,11 @@ export default async (req: Request) => {
   }
 
   try {
-    let found: Awaited<ReturnType<typeof findDeal>> = { contact: null, deal: null };
-    for (const delay of DEAL_RETRY_DELAYS_MS) {
-      if (delay) await new Promise(r => setTimeout(r, delay));
-      found = await findDeal(email);
-      if (found.deal) break;
-    }
-    if (!found.contact) return Response.json({ error: `No HubSpot contact found for ${email}.` }, { status: 404 });
-    if (!found.deal) return Response.json({ error: `No deal found on the HubSpot contact for ${email}.` }, { status: 404 });
+    // Single attempt; the browser retries a few times while Zapier may
+    // still be creating the contact/deal.
+    const found = await findDeal(email);
+    if (!found.contact) return Response.json({ error: `No HubSpot contact found for ${email}.`, retry: true }, { status: 404 });
+    if (!found.deal) return Response.json({ error: `No deal found on the HubSpot contact for ${email}.`, retry: true }, { status: 404 });
 
     const dryRun = p.dryRun === true;
     if (!dryRun) {
