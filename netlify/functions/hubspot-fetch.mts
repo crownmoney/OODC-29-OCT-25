@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { hasValidSession } from "../lib/session.mts";
-import { HubSpotError, findContactId, pickDeal, readProperties } from "../lib/hubspot.mts";
+import { HubSpotError, findContactId, pickDeal, readProperties, discoverFrequencyPairs } from "../lib/hubspot.mts";
 
 // "Fetch from HubSpot": returns the client's contact basics and the fact-find
 // fields on their newest open deal. The app maps them onto calculator fields
@@ -19,7 +19,7 @@ export const DEAL_PROPS = [
   // Income
   "net_income__1", "net_income__2", "total_monthly_after_tax_income__current_",
   // Expenses (amount + frequency)
-  "food", "fun", "fuel", "gas", "electricity", "car_insurance",
+  "food", "fun", "fuel",
   "childcare_amount", "childcare_frequency",
   "health_insurance_amount", "health_insurance_frequency",
   "home_insurance_amount", "home_insurance_frequency",
@@ -29,14 +29,19 @@ export const DEAL_PROPS = [
   "monthly_school", "education_cost_frequency",
   "medical", "medical_cost_frequency",
   "home_costs", "other_expenses_text",
-  // Frequency fields being added in HubSpot ("<field>_frequency"); ignored until they exist.
-  ...["food", "fun", "fuel", "gas", "electricity", "car_insurance", "home_costs", "mobile_phone", "monthly_school", "medical"].map(p => `${p}_frequency`),
+  // Expense fields with a paired "<field>_frequency" dropdown
+  ...["gas", "electricity", "car_insurance", "car_maintenance", "car_rego", "boatjetskiother_rego",
+    "house_insurance", "income_protection", "life_insurance", "pet_insurance", "internet", "phone",
+    "other_maintenance", "rates", "water", "gym", "subscriptions"].flatMap(p => [p, `${p}_frequency`]),
+  "pool_maint", "pool_maintenance_frequency",
+  // Frequency fields not created yet; ignored until they exist.
+  "food_frequency", "fun_frequency", "fuel_frequency", "home_costs_frequency",
   "total_monthly_expenses__current_", "monthly_expenses__without_mortgage_",
   // Other debts & savings (reference only)
   "total_of_other_debts", "debts_being_consolidated", "total_savings",
 ];
 
-const BASE_FREQ = new Set(["childcare_frequency", "health_insurance_frequency", "home_insurance_frequency", "motor_vehicle_frequency", "car_cost_frequency", "phone___internet_frequency", "education_cost_frequency", "medical_cost_frequency", "repayment_frequency"]);
+const BASE_FREQ = new Set(["gas_frequency", "electricity_frequency", "car_insurance_frequency", "car_maintenance_frequency", "car_rego_frequency", "boatjetskiother_rego_frequency", "house_insurance_frequency", "income_protection_frequency", "life_insurance_frequency", "pet_insurance_frequency", "internet_frequency", "phone_frequency", "other_maintenance_frequency", "rates_frequency", "water_frequency", "gym_frequency", "subscriptions_frequency", "pool_maintenance_frequency", "childcare_frequency", "health_insurance_frequency", "home_insurance_frequency", "motor_vehicle_frequency", "car_cost_frequency", "phone___internet_frequency", "education_cost_frequency", "medical_cost_frequency", "repayment_frequency"]);
 
 export default async (req: Request) => {
   if (!hasValidSession(req)) return Response.json({ error: "Please log in again." }, { status: 401 });
@@ -52,11 +57,15 @@ export default async (req: Request) => {
   try {
     const contactId = await findContactId(email);
     if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}.` }, { status: 404 });
-    const [contact, deal] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), pickDeal(contactId)]);
+    const [contact, deal, pairs] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), pickDeal(contactId), discoverFrequencyPairs()]);
+    // Any "<X>" + "<X> Frequency" pair added in HubSpot that the app doesn't map yet.
+    const known = new Set(DEAL_PROPS);
+    const extraPairs = pairs.filter(p => !known.has(p.amountProp) && !known.has(p.freqProp));
+    const propsToRead = [...DEAL_PROPS, ...extraPairs.flatMap(p => [p.amountProp, p.freqProp])];
     // If HubSpot rejects a not-yet-created *_frequency field, retry without them.
     const dealProps = deal
-      ? await readProperties("deals", deal.id, DEAL_PROPS).catch(err => {
-          if (err instanceof HubSpotError && err.status === 400) return readProperties("deals", deal.id, DEAL_PROPS.filter(p => !p.endsWith("_frequency") || BASE_FREQ.has(p)));
+      ? await readProperties("deals", deal.id, propsToRead).catch(err => {
+          if (err instanceof HubSpotError && err.status === 400) return readProperties("deals", deal.id, propsToRead.filter(p => !p.endsWith("_frequency") || BASE_FREQ.has(p) || extraPairs.some(x => x.freqProp === p)));
           throw err;
         })
       : {};
@@ -64,6 +73,7 @@ export default async (req: Request) => {
       email,
       contact,
       deal: deal ? { id: deal.id, name: deal.properties?.dealname ?? "", properties: dealProps } : null,
+      extraPairs,
     });
   } catch (error) {
     console.error("HubSpot fetch failed:", error);

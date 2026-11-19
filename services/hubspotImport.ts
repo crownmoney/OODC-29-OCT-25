@@ -9,6 +9,8 @@ export interface HubSpotFetchResult {
   email: string;
   contact: Record<string, string>;
   deal: { id: string; name: string; properties: Record<string, string> } | null;
+  /** Amount + frequency pairs found in HubSpot that have no specific mapping yet. */
+  extraPairs?: { amountProp: string; freqProp: string; label: string }[];
 }
 
 export interface ImportItem {
@@ -47,7 +49,7 @@ const upsertExpense = (s: AppState, item: Omit<ExpenseItem, 'id'>, aliases: stri
   return { ...s, expenses };
 };
 
-const setInsurance = (s: AppState, key: 'health' | 'house', amount: number, frequency: Frequency): AppState => {
+const setInsurance = (s: AppState, key: 'health' | 'house' | 'pet' | 'income' | 'life' | 'other', amount: number, frequency: Frequency): AppState => {
   const list = (s.insurances ?? DEFAULT_INSURANCES).map(i => (i.key === key ? { ...i, amount, frequency } : i));
   return { ...s, insurances: list };
 };
@@ -137,28 +139,46 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   exp('gas', 'Gas', 'gas', null, 'quarterly', 'Hard Expenses', ['gas etc']);
   exp('electricity', 'Electricity', 'electricity', null, 'quarterly', 'Hard Expenses', ['power']);
   exp('childcare', 'Childcare', 'childcare_amount', 'childcare_frequency', 'fortnightly', 'Hard Expenses');
-  exp('phone', 'Phone etc', 'mobile_phone', 'phone___internet_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
+  if (n(d.phone) !== null) exp('phone', 'Phone etc', 'phone', 'phone_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
+  else exp('phone', 'Phone etc', 'mobile_phone', 'phone___internet_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
+  exp('internet', 'Internet', 'internet', 'internet_frequency', 'monthly', 'Hard Expenses', ['internet/media']);
+  exp('rates', 'Rates', 'rates', 'rates_frequency', 'quarterly', 'Hard Expenses', ['council rates']);
+  exp('water', 'Water', 'water', 'water_frequency', 'quarterly', 'Hard Expenses');
+  exp('boatrego', 'Boat/Jetski/Other Rego', 'boatjetskiother_rego', 'boatjetskiother_rego_frequency', 'annually', 'Hard Expenses');
+  exp('othermaint', 'Other Maintenance', 'other_maintenance', 'other_maintenance_frequency', 'annually', 'Hard Expenses');
+  exp('gym', 'Gym', 'gym', 'gym_frequency', 'monthly', 'Soft Expenses');
+  exp('subs', 'Subs', 'subscriptions', 'subscriptions_frequency', 'monthly', 'Hard Expenses', ['subscriptions']);
+  // Any other "<X>" + "<X> Frequency" pairs added in HubSpot later.
+  for (const x of r.extraPairs ?? []) exp(`extra-${x.amountProp}`, x.label, x.amountProp, x.freqProp, 'monthly', 'Other');
+  exp('poolmaint', 'Pool Maintenance', 'pool_maint', 'pool_maintenance_frequency', 'monthly', 'Hard Expenses', ['pool maint', 'pool']);
   exp('school', 'School/Education', 'monthly_school', 'education_cost_frequency', 'monthly', 'Hard Expenses', ['school', 'education']);
   exp('medical', 'Medical', 'medical', 'medical_cost_frequency', 'monthly', 'Soft Expenses');
   exp('homecosts', 'Home costs', 'home_costs', null, 'monthly', 'Hard Expenses');
 
-  const ins = (id: string, label: string, amtProp: string, freqProp: string, apply: (s: AppState, amt: number, f: Frequency) => AppState) => {
+  const ins = (id: string, label: string, amtProp: string, freqProp: string, apply: (s: AppState, amt: number, f: Frequency) => AppState, fallback: Frequency = 'monthly') => {
     const amt = n(d[amtProp]);
     if (amt === null) return;
-    const f = freq(d[freqProp], 'monthly');
+    const f = freq(d[freqProp], fallback);
     items.push({
       id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}${d[freqProp] ? `, ${freqProp}` : ''}`,
-      note: d[freqProp] ? undefined : `No frequency in HubSpot (${freqProp}); assumed monthly.`,
+      note: d[freqProp] ? undefined : `No frequency in HubSpot (${freqProp}); assumed ${fallback}.`,
       apply: s => apply(s, amt, f),
     });
   };
   ins('health', 'Health insurance', 'health_insurance_amount', 'health_insurance_frequency', (s, a, f) => setInsurance(s, 'health', a, f));
-  ins('house', 'House insurance', 'home_insurance_amount', 'home_insurance_frequency', (s, a, f) => setInsurance(s, 'house', a, f));
+  const houseNew = n(d.house_insurance) !== null;
+  ins('house', 'House insurance', houseNew ? 'house_insurance' : 'home_insurance_amount', houseNew ? 'house_insurance_frequency' : 'home_insurance_frequency', (s, a, f) => setInsurance(s, 'house', a, f), 'annually');
+  ins('life', 'Life insurance', 'life_insurance', 'life_insurance_frequency', (s, a, f) => setInsurance(s, 'life', a, f));
+  ins('incomeprot', 'Income protection', 'income_protection', 'income_protection_frequency', (s, a, f) => setInsurance(s, 'income', a, f));
+  ins('pet', 'Pet insurance', 'pet_insurance', 'pet_insurance_frequency', (s, a, f) => setInsurance(s, 'pet', a, f));
   const carInsNew = n(d.car_insurance) !== null;
   ins('carins', 'Car insurance', carInsNew ? 'car_insurance' : 'motor_vehicle_insurance_amount', carInsNew ? 'car_insurance_frequency' : 'motor_vehicle_frequency',
     (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), insurance: { amount: a, frequency: f } } }));
-  ins('carrun', 'Car running costs (→ Car maintenance)', 'car_running_costs', 'car_cost_frequency',
-    (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), maintenance: { amount: a, frequency: f } } }));
+  const carMaintNew = n(d.car_maintenance) !== null;
+  ins('carmaint', carMaintNew ? 'Car maintenance' : 'Car running costs (→ Car maintenance)', carMaintNew ? 'car_maintenance' : 'car_running_costs', carMaintNew ? 'car_maintenance_frequency' : 'car_cost_frequency',
+    (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), maintenance: { amount: a, frequency: f } } }), 'annually');
+  ins('carrego', 'Car rego', 'car_rego', 'car_rego_frequency',
+    (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), rego: { amount: a, frequency: f } } }), 'annually');
 
   // --- Reference only -------------------------------------------------------------
   const ref = (id: string, label: string, prop: string, fmt: (v: string) => string = v => v) => {

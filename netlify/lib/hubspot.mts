@@ -72,3 +72,25 @@ export const readProperties = async (objectType: string, id: string, properties:
   }
   return out;
 };
+
+/**
+ * Finds "<X>" number fields that have a matching "<X> Frequency" dropdown on
+ * deals. Needs the crm.schemas.deals.read scope; returns [] without it.
+ */
+export const discoverFrequencyPairs = async (): Promise<{ amountProp: string; freqProp: string; label: string }[]> => {
+  try {
+    const data = await hs("/crm/v3/properties/deals?archived=false");
+    const props: { name: string; label: string; type: string }[] = data?.results ?? [];
+    const byLabel = new Map(props.filter(p => p.type === "number").map(p => [p.label.trim().toLowerCase(), p]));
+    const pairs: { amountProp: string; freqProp: string; label: string }[] = [];
+    for (const f of props) {
+      const m = f.label.trim().match(/^(.*)\s+frequency$/i);
+      if (!m || f.type !== "enumeration") continue;
+      const base = byLabel.get(m[1].trim().toLowerCase());
+      if (base) pairs.push({ amountProp: base.name, freqProp: f.name, label: base.label.trim() });
+    }
+    return pairs;
+  } catch {
+    return [];
+  }
+};
