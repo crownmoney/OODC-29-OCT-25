@@ -25,6 +25,8 @@ import { storageService, Scenario } from './services/storageService';
 import { checkSession, login } from './services/api';
 import { buildZapierFields } from './services/zapierFields';
 import { assessDnq } from './services/dnq';
+import HubSpotImport from './components/HubSpotImport';
+import { CloudDownload } from 'lucide-react';
 import Notepad from './components/Notepad';
 import Assistant from './components/Assistant';
 import AICommandCenter from './components/AICommandCenter';
@@ -387,6 +389,7 @@ const App: React.FC = () => {
   const [snapshot, setSnapshot] = useState<AppState | null>(null);
   const [isRevertModalOpen, setIsRevertModalOpen] = useState(false);
   const [isAICommandOpen, setIsAICommandOpen] = useState(false);
+  const [isHubSpotImportOpen, setIsHubSpotImportOpen] = useState(false);
   const [infoToast, setInfoToast] = useState('');
   const [warningToast, setWarningToast] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -755,6 +758,7 @@ const App: React.FC = () => {
         <header className="app-header flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 pb-4 border-b border-[var(--border-color)] print:hidden">
           <CrownLogo className="h-14 w-auto" />
           <div className="flex items-center gap-2 overflow-x-auto flex-nowrap py-1 pr-2">
+              <button onClick={() => setIsHubSpotImportOpen(true)} title="Fetch from HubSpot" className={`${buttonBaseClasses} bg-orange-50 text-orange-700 border-orange-200`}><CloudDownload className="h-5 w-5"/><span className="text-sm font-black hidden sm:inline uppercase">Fetch from HubSpot</span></button>
               <button onClick={() => setIsAICommandOpen(true)} title="Ask Mike" className={`${buttonBaseClasses} bg-indigo-50 text-indigo-700 border-indigo-200`}><SparklesIcon className="h-5 w-5"/><span className="text-sm font-black hidden sm:inline uppercase">Ask Mike</span></button>
               <button onClick={handleOpenSaveModal} title="Save Scenario" className={buttonBaseClasses}><SaveIcon className="h-5 w-5"/><span className="text-sm font-semibold hidden sm:inline">Save Scenario</span></button>
               <button onClick={() => setIsLoadModalOpen(true)} title="Load Scenarios" className={buttonBaseClasses}><FolderOpenIcon className="h-5 w-5"/><span className="text-sm font-semibold hidden sm:inline">Scenarios</span></button>
@@ -813,6 +817,13 @@ const App: React.FC = () => {
           </div>
 
           <Assistant appState={appState} calculations={calculations} activeTab={currentTabLabel} />
+          <HubSpotImport
+            isOpen={isHubSpotImportOpen}
+            onClose={() => setIsHubSpotImportOpen(false)}
+            appState={appState}
+            setAppState={setAppState}
+            onImported={(count) => setInfoToast(`Imported ${count} field${count === 1 ? '' : 's'} from HubSpot`)}
+          />
           <AICommandCenter 
             isOpen={isAICommandOpen} 
             onClose={() => setIsAICommandOpen(false)} 

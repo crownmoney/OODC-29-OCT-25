@@ -1,0 +1,177 @@
+import { AppState, ExpenseItem, Frequency, IncomeItem } from '../types';
+import { DEFAULT_CAR_SETUP, DEFAULT_INSURANCES, syncManagedItems } from './managedExpenses';
+
+// Maps the fields returned by /api/hubspot-fetch (HubSpot deal fact-find
+// fields + contact basics) onto calculator fields. Each item is shown to the
+// consultant with its HubSpot source before anything is applied.
+
+export interface HubSpotFetchResult {
+  email: string;
+  contact: Record<string, string>;
+  deal: { id: string; name: string; properties: Record<string, string> } | null;
+}
+
+export interface ImportItem {
+  id: string;
+  group: 'Client' | 'Current loan' | 'Income' | 'Expenses' | 'For reference';
+  label: string;
+  value: string;          // display
+  source: string;         // HubSpot property name(s)
+  note?: string;          // shown as a caution
+  apply?: (s: AppState) => AppState; // undefined = reference only
+}
+
+const FREQ: Record<string, Frequency> = { weekly: 'weekly', fortnightly: 'fortnightly', monthly: 'monthly', quarterly: 'quarterly', yearly: 'annually', annually: 'annually' };
+const freq = (v: string | undefined, fallback: Frequency): Frequency => FREQ[(v || '').toLowerCase()] ?? fallback;
+const n = (v: string | undefined): number | null => {
+  if (v === undefined) return null;
+  const x = parseFloat(String(v).replace(/[$,\s]/g, ''));
+  return isFinite(x) ? x : null;
+};
+const money = (v: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 2 }).format(v);
+const freqLabel = (f: Frequency) => f === 'annually' ? 'a year' : f === 'monthly' ? 'a month' : f === 'weekly' ? 'a week' : f === 'fortnightly' ? 'a fortnight' : 'a quarter';
+
+const withPerson = (s: AppState, index: number, patch: { name?: string; age?: number }): AppState => {
+  const people = [...(s.people || [])];
+  while (people.length <= index) people.push({ id: Date.now() + people.length, name: `Person ${people.length + 1}`, age: 35 });
+  people[index] = { ...people[index], ...patch };
+  return { ...s, people };
+};
+
+const upsertExpense = (s: AppState, item: Omit<ExpenseItem, 'id'>, aliases: string[] = []): AppState => {
+  const names = [item.name, ...aliases].map(x => x.toLowerCase());
+  const expenses = [...(s.expenses || [])];
+  const i = expenses.findIndex(e => !e.managed && names.includes((e.name || '').toLowerCase()));
+  if (i >= 0) expenses[i] = { ...expenses[i], amount: item.amount, frequency: item.frequency, category: item.category, isImported: true };
+  else expenses.push({ ...item, id: Date.now() + Math.floor(Math.random() * 1e6), isImported: true });
+  return { ...s, expenses };
+};
+
+const setInsurance = (s: AppState, key: 'health' | 'house', amount: number, frequency: Frequency): AppState => {
+  const list = (s.insurances ?? DEFAULT_INSURANCES).map(i => (i.key === key ? { ...i, amount, frequency } : i));
+  return { ...s, insurances: list };
+};
+
+export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
+  const c = r.contact || {};
+  const d = r.deal?.properties || {};
+  const items: ImportItem[] = [];
+
+  // --- Client ---------------------------------------------------------------
+  const p1 = [c.firstname, c.lastname].filter(Boolean).join(' ');
+  if (p1) items.push({ id: 'p1name', group: 'Client', label: 'Person 1 name', value: p1, source: 'contact: firstname, lastname', apply: s => withPerson(s, 0, { name: p1 }) });
+  const firstNames = (d.client_first_names || '').split(/\s*(?:&|\band\b|,|\/)\s*/i).map(x => x.trim()).filter(Boolean);
+  if (firstNames.length > 1) {
+    const p2 = firstNames[1];
+    items.push({ id: 'p2name', group: 'Client', label: 'Person 2 name', value: p2, source: 'deal: client_first_names', apply: s => withPerson(s, 1, { name: p2 }) });
+  }
+  const a1 = n(d.loan_holder__1_age), a2 = n(d.loan_holder__2_age);
+  if (a1 !== null) items.push({ id: 'p1age', group: 'Client', label: 'Person 1 age', value: String(a1), source: 'deal: loan_holder__1_age', apply: s => withPerson(s, 0, { age: a1 }) });
+  if (a2 !== null) items.push({ id: 'p2age', group: 'Client', label: 'Person 2 age', value: String(a2), source: 'deal: loan_holder__2_age', apply: s => withPerson(s, 1, { age: a2 }) });
+  const phone = c.mobilephone || c.phone;
+  if (phone) items.push({ id: 'phone', group: 'Client', label: 'Phone', value: phone, source: c.mobilephone ? 'contact: mobilephone' : 'contact: phone', apply: s => ({ ...s, clientPhone: phone }) });
+  items.push({ id: 'email', group: 'Client', label: 'Email', value: r.email, source: 'contact: email', apply: s => ({ ...s, clientEmail: r.email }) });
+  const kids = n(d.kids) ?? n(d.kids_under_18);
+  if (kids !== null) items.push({ id: 'kids', group: 'Client', label: 'Number of kids', value: String(kids), source: d.kids !== undefined ? 'deal: kids' : 'deal: kids_under_18', apply: s => ({ ...s, numberOfKids: kids }) });
+
+  // --- Current loan -----------------------------------------------------------
+  let lender = d.current_lender__sales_;
+  if ((!lender || lender === 'Other') && d.bank_name) lender = d.bank_name;
+  if (lender) items.push({ id: 'lender', group: 'Current loan', label: 'Current lender', value: lender, source: d.current_lender__sales_ && d.current_lender__sales_ !== 'Other' ? 'deal: current_lender__sales_' : 'deal: bank_name', apply: s => ({ ...s, currentLender: lender! }) });
+  const bal = n(d.current_loan_balance);
+  if (bal !== null) items.push({ id: 'loanAmount', group: 'Current loan', label: 'Loan balance', value: money(bal), source: 'deal: current_loan_balance', apply: s => ({ ...s, loan: { ...s.loan, amount: bal } }) });
+  const rate = n(d.current_interest_rate);
+  if (rate !== null) items.push({ id: 'rate', group: 'Current loan', label: 'Interest rate', value: `${rate}%`, source: 'deal: current_interest_rate', apply: s => ({ ...s, loan: { ...s.loan, interestRate: rate } }) });
+  const repSrc = d.monthly_loan_repayments2 !== undefined ? 'monthly_loan_repayments2' : 'total_monthly_repayments__current_';
+  const rep = n(d[repSrc]);
+  if (rep !== null) items.push({ id: 'repayment', group: 'Current loan', label: 'Repayment', value: `${money(rep)} a month`, source: `deal: ${repSrc}`, apply: s => ({ ...s, loan: { ...s.loan, repayment: rep, frequency: 'monthly' } }) });
+  const off = n(d.offset_account_balance);
+  if (off !== null) items.push({ id: 'offset', group: 'Current loan', label: 'Offset balance', value: money(off), source: 'deal: offset_account_balance', apply: s => ({ ...s, loan: { ...s.loan, offsetBalance: off } }) });
+  const pvSrc = d.security_1_value !== undefined ? 'security_1_value' : 'total_security_property_values';
+  const pv = n(d[pvSrc]);
+  if (pv !== null) items.push({ id: 'propertyValue', group: 'Current loan', label: 'Property value', value: money(pv), source: `deal: ${pvSrc}`, apply: s => ({ ...s, loan: { ...s.loan, propertyValue: pv } }) });
+  const yrs = n(d.years_left_on_current_loan);
+  if (yrs !== null) items.push({ id: 'term', group: 'Current loan', label: 'Years left on loan', value: String(yrs), source: 'deal: years_left_on_current_loan', apply: s => ({ ...s, loan: { ...s.loan, loanTerm: yrs } }) });
+
+  // --- Income -------------------------------------------------------------------
+  const i1 = n(d.net_income__1), i2 = n(d.net_income__2);
+  const incomeNote = 'HubSpot labels this "Net Income" but its description says "gross before expenses". Check it is after tax.';
+  const incomeLines: { name: string; amount: number; src: string }[] = [];
+  if (i1) incomeLines.push({ name: 'Person 1 Income', amount: i1, src: 'net_income__1' });
+  if (i2) incomeLines.push({ name: 'Person 2 Income', amount: i2, src: 'net_income__2' });
+  if (incomeLines.length) {
+    for (const l of incomeLines) {
+      items.push({
+        id: `inc-${l.src}`, group: 'Income', label: l.name, value: `${money(l.amount)} a year`, source: `deal: ${l.src}`, note: incomeNote,
+        apply: s => {
+          const others = (s.incomes || []).filter(x => (x.name || '').toLowerCase() !== l.name.toLowerCase());
+          const inc: IncomeItem = { ...(s.incomes?.[0] ?? {}), id: Date.now() + Math.floor(Math.random() * 1e6), name: l.name, amount: l.amount, frequency: 'annually', isImported: true } as IncomeItem;
+          return { ...s, incomes: [...others, inc] };
+        },
+      });
+    }
+  } else {
+    const tm = n(d.total_monthly_after_tax_income__current_);
+    if (tm) items.push({
+      id: 'inc-total', group: 'Income', label: 'Household income (after tax)', value: `${money(tm)} a month`, source: 'deal: total_monthly_after_tax_income__current_',
+      apply: s => ({ ...s, incomes: [{ id: Date.now(), name: 'Household Income', amount: tm, frequency: 'monthly', isImported: true } as IncomeItem] }),
+    });
+  }
+
+  // --- Expenses -------------------------------------------------------------------
+  const exp = (id: string, label: string, amtProp: string, freqProp: string | null, fallback: Frequency, category: ExpenseItem['category'], aliases: string[] = [], note?: string) => {
+    const amt = n(d[amtProp]);
+    if (amt === null) return;
+    const f = freqProp ? freq(d[freqProp], fallback) : fallback;
+    items.push({
+      id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}${freqProp && d[freqProp] ? `, ${freqProp}` : ''}`,
+      note: note ?? (freqProp && !d[freqProp] ? `No frequency in HubSpot; assumed ${f}.` : undefined),
+      apply: s => upsertExpense(s, { name: label, amount: amt, frequency: f, category }, aliases),
+    });
+  };
+  const fffNote = 'HubSpot has no frequency for this; assumed weekly.';
+  exp('food', 'Food', 'food', null, 'weekly', 'FFF', ['groceries'], fffNote);
+  exp('fun', 'Fun', 'fun', null, 'weekly', 'FFF', [], fffNote);
+  exp('fuel', 'Fuel', 'fuel', null, 'weekly', 'FFF', [], fffNote);
+  exp('childcare', 'Childcare', 'childcare_amount', 'childcare_frequency', 'fortnightly', 'Hard Expenses');
+  exp('phone', 'Phone etc', 'mobile_phone', 'phone___internet_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
+  exp('school', 'School/Education', 'monthly_school', 'education_cost_frequency', 'monthly', 'Hard Expenses', ['school', 'education']);
+  exp('medical', 'Medical', 'medical', 'medical_cost_frequency', 'monthly', 'Soft Expenses');
+  exp('homecosts', 'Home costs', 'home_costs', null, 'monthly', 'Hard Expenses', [], 'HubSpot has no frequency for this; assumed monthly.');
+
+  const ins = (id: string, label: string, amtProp: string, freqProp: string, apply: (s: AppState, amt: number, f: Frequency) => AppState) => {
+    const amt = n(d[amtProp]);
+    if (amt === null) return;
+    const f = freq(d[freqProp], 'monthly');
+    items.push({ id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}, ${freqProp}`, apply: s => apply(s, amt, f) });
+  };
+  ins('health', 'Health insurance', 'health_insurance_amount', 'health_insurance_frequency', (s, a, f) => setInsurance(s, 'health', a, f));
+  ins('house', 'House insurance', 'home_insurance_amount', 'home_insurance_frequency', (s, a, f) => setInsurance(s, 'house', a, f));
+  ins('carins', 'Car insurance', 'motor_vehicle_insurance_amount', 'motor_vehicle_frequency',
+    (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), insurance: { amount: a, frequency: f } } }));
+  ins('carrun', 'Car running costs (→ Car maintenance)', 'car_running_costs', 'car_cost_frequency',
+    (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), maintenance: { amount: a, frequency: f } } }));
+
+  // --- Reference only -------------------------------------------------------------
+  const ref = (id: string, label: string, prop: string, fmt: (v: string) => string = v => v) => {
+    if (d[prop] !== undefined) items.push({ id, group: 'For reference', label, value: fmt(d[prop]), source: `deal: ${prop}` });
+  };
+  const m = (v: string) => (n(v) !== null ? money(n(v)!) : v);
+  ref('otherdebts', 'Total of other debts (add each debt on Current Loan)', 'total_of_other_debts', m);
+  ref('debtsconsol', 'Debts being consolidated', 'debts_being_consolidated');
+  ref('savings', 'Savings', 'total_savings', m);
+  ref('othexp', 'Other expenses (notes)', 'other_expenses_text');
+  ref('totexp', 'Total monthly expenses in HubSpot', 'total_monthly_expenses__current_', m);
+
+  return items;
+};
+
+/** Applies the selected items, then re-syncs Car/Insurance-managed expenses. */
+export const applyImport = (state: AppState, items: ImportItem[], selected: Set<string>): AppState => {
+  let s = state;
+  for (const it of items) if (it.apply && selected.has(it.id)) s = it.apply(s);
+  if (s.carSetup || s.insurances) {
+    s = syncManagedItems({ ...s, carSetup: s.carSetup ?? DEFAULT_CAR_SETUP, insurances: s.insurances ?? DEFAULT_INSURANCES });
+  }
+  return s;
+};
