@@ -101,6 +101,9 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   const incomeLines: { name: string; amount: number; src: string; freqSrc: string }[] = [];
   if (i1) incomeLines.push({ name: 'Primary Borrower Income', amount: i1, src: 'net_income__1', freqSrc: 'net_income_1_frequency' });
   if (i2) incomeLines.push({ name: 'Partner Income', amount: i2, src: 'net_income__2', freqSrc: 'net_income_2_frequency' });
+  const o1 = n(d.net_income_1_other), o2 = n(d.net_income_2_other);
+  if (o1) incomeLines.push({ name: 'Primary Borrower Other Income', amount: o1, src: 'net_income_1_other', freqSrc: 'net_income_1_other_frequency' });
+  if (o2) incomeLines.push({ name: 'Partner Other Income', amount: o2, src: 'net_income_2_other', freqSrc: 'net_income_2_other_frequency' });
   if (incomeLines.length) {
     for (const l of incomeLines) {
       const f = freq(d[l.freqSrc], 'annually');
@@ -161,7 +164,7 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   exp('gym', 'Gym', 'gym', 'gym_frequency', 'monthly', 'Soft Expenses');
   exp('subs', 'Subs', 'subscriptions', 'subscriptions_frequency', 'monthly', 'Hard Expenses', ['subscriptions']);
   // Any other "<X>" + "<X> Frequency" pairs added in HubSpot later.
-  for (const x of r.extraPairs ?? []) exp(`extra-${x.amountProp}`, x.label, x.amountProp, x.freqProp, 'monthly', 'Other');
+  for (const x of (r.extraPairs ?? []).filter(x => !/income/i.test(x.label))) exp(`extra-${x.amountProp}`, x.label, x.amountProp, x.freqProp, 'monthly', 'Other');
   exp('poolmaint', 'Pool Maintenance', 'pool_maint', 'pool_maintenance_frequency', 'monthly', 'Hard Expenses', ['pool maint', 'pool']);
   if (n(d.private_schooleducation) !== null) exp('school', 'School/Education', 'private_schooleducation', 'private_schooleducation_frequency', 'annually', 'Hard Expenses', ['school', 'education', 'private school/education']);
   else exp('school', 'School/Education', 'monthly_school', 'education_cost_frequency', 'monthly', 'Hard Expenses', ['school', 'education']);
