@@ -98,16 +98,19 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   // --- Income -------------------------------------------------------------------
   const i1 = n(d.net_income__1), i2 = n(d.net_income__2);
   const incomeNote = 'HubSpot labels this "Net Income" but its description says "gross before expenses". Check it is after tax.';
-  const incomeLines: { name: string; amount: number; src: string }[] = [];
-  if (i1) incomeLines.push({ name: 'Person 1 Income', amount: i1, src: 'net_income__1' });
-  if (i2) incomeLines.push({ name: 'Person 2 Income', amount: i2, src: 'net_income__2' });
+  const incomeLines: { name: string; amount: number; src: string; freqSrc: string }[] = [];
+  if (i1) incomeLines.push({ name: 'Primary Borrower Income', amount: i1, src: 'net_income__1', freqSrc: 'net_income_1_frequency' });
+  if (i2) incomeLines.push({ name: 'Partner Income', amount: i2, src: 'net_income__2', freqSrc: 'net_income_2_frequency' });
   if (incomeLines.length) {
     for (const l of incomeLines) {
+      const f = freq(d[l.freqSrc], 'annually');
+      const hasF = !!d[l.freqSrc];
       items.push({
-        id: `inc-${l.src}`, group: 'Income', label: l.name, value: `${money(l.amount)} a year`, source: `deal: ${l.src}`, note: incomeNote,
+        id: `inc-${l.src}`, group: 'Income', label: l.name, value: `${money(l.amount)} ${freqLabel(f)}`, source: `deal: ${l.src}${hasF ? `, ${l.freqSrc}` : ''}`,
+        note: hasF ? incomeNote : `${incomeNote} No frequency set in HubSpot (assumed yearly).`,
         apply: s => {
           const others = (s.incomes || []).filter(x => (x.name || '').toLowerCase() !== l.name.toLowerCase());
-          const inc: IncomeItem = { ...(s.incomes?.[0] ?? {}), id: Date.now() + Math.floor(Math.random() * 1e6), name: l.name, amount: l.amount, frequency: 'annually', isImported: true } as IncomeItem;
+          const inc: IncomeItem = { ...(s.incomes?.[0] ?? {}), id: Date.now() + Math.floor(Math.random() * 1e6), name: l.name, amount: l.amount, frequency: f, isImported: true } as IncomeItem;
           return { ...s, incomes: [...others, inc] };
         },
       });
@@ -152,6 +155,9 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   exp('kidsexc', 'Kids Excursions', 'kids_excursions', 'kids_excursions_frequency', 'annually', 'Soft Expenses');
   exp('rent', 'Rent', 'rent', 'rent_frequency', 'weekly', 'Hard Expenses');
   exp('debtrepay', 'Debt Repay', 'debt_repay', 'debt_repay_frequency', 'monthly', 'Hard Expenses');
+  // Additional Expense 1-3 (no description field in HubSpot).
+  for (const i of [1, 2, 3]) exp(`addexp${i}`, `Additional Expense ${i}`, `additional_expense${i}`, `additional_expense${i}_frequency`, 'monthly', 'Other', [],
+    d[`additional_expense${i}_frequency`] ? undefined : 'No frequency set in HubSpot (assumed monthly).');
   exp('gym', 'Gym', 'gym', 'gym_frequency', 'monthly', 'Soft Expenses');
   exp('subs', 'Subs', 'subscriptions', 'subscriptions_frequency', 'monthly', 'Hard Expenses', ['subscriptions']);
   // Any other "<X>" + "<X> Frequency" pairs added in HubSpot later.
