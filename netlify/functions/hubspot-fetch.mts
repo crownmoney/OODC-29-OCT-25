@@ -32,8 +32,8 @@ export const DEAL_PROPS = [
   // Expense fields with a paired "<field>_frequency" dropdown
   ...["gas", "electricity", "car_insurance", "car_maintenance", "car_rego", "boatjetskiother_rego",
     "house_insurance", "income_protection", "life_insurance", "pet_insurance", "internet", "phone",
-    "other_maintenance", "rates", "water", "gym", "subscriptions", "kids_activities_netball", "medical2", "private_schooleducation"].flatMap(p => [p, `${p}_frequency`]),
-  "pool_maint", "pool_maintenance_frequency", "childcare", "childcare_frequency2",
+    "other_maintenance", "rates", "water", "gym", "subscriptions", "kids_activities_netball", "medical2", "private_schooleducation", "kids_excursions", "rent", "debt_repay"].flatMap(p => [p, `${p}_frequency`]),
+  "pool_maint", "pool_maintenance_frequency", "childcare", "childcare_frequency2", "health_insurance", "health_insurance_frequency2",
   // Frequency fields not created yet; ignored until they exist.
   "food_frequency", "fun_frequency", "fuel_frequency", "home_costs_frequency",
   "total_monthly_expenses__current_", "monthly_expenses__without_mortgage_",
@@ -41,7 +41,7 @@ export const DEAL_PROPS = [
   "total_of_other_debts", "debts_being_consolidated", "total_savings",
 ];
 
-const BASE_FREQ = new Set(["gas_frequency", "electricity_frequency", "car_insurance_frequency", "car_maintenance_frequency", "car_rego_frequency", "boatjetskiother_rego_frequency", "house_insurance_frequency", "income_protection_frequency", "life_insurance_frequency", "pet_insurance_frequency", "internet_frequency", "phone_frequency", "other_maintenance_frequency", "rates_frequency", "water_frequency", "gym_frequency", "subscriptions_frequency", "kids_activities_netball_frequency", "medical2_frequency", "private_schooleducation_frequency", "childcare_frequency2", "pool_maintenance_frequency", "childcare_frequency", "health_insurance_frequency", "home_insurance_frequency", "motor_vehicle_frequency", "car_cost_frequency", "phone___internet_frequency", "education_cost_frequency", "medical_cost_frequency", "repayment_frequency"]);
+const BASE_FREQ = new Set(["gas_frequency", "electricity_frequency", "car_insurance_frequency", "car_maintenance_frequency", "car_rego_frequency", "boatjetskiother_rego_frequency", "house_insurance_frequency", "income_protection_frequency", "life_insurance_frequency", "pet_insurance_frequency", "internet_frequency", "phone_frequency", "other_maintenance_frequency", "rates_frequency", "water_frequency", "gym_frequency", "subscriptions_frequency", "kids_activities_netball_frequency", "medical2_frequency", "private_schooleducation_frequency", "childcare_frequency2", "health_insurance_frequency2", "kids_excursions_frequency", "rent_frequency", "debt_repay_frequency", "pool_maintenance_frequency", "childcare_frequency", "health_insurance_frequency", "home_insurance_frequency", "motor_vehicle_frequency", "car_cost_frequency", "phone___internet_frequency", "education_cost_frequency", "medical_cost_frequency", "repayment_frequency"]);
 
 export default async (req: Request) => {
   if (!hasValidSession(req)) return Response.json({ error: "Please log in again." }, { status: 401 });

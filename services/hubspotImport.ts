@@ -149,6 +149,9 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   exp('water', 'Water', 'water', 'water_frequency', 'quarterly', 'Hard Expenses');
   exp('boatrego', 'Boat/Jetski/Other Rego', 'boatjetskiother_rego', 'boatjetskiother_rego_frequency', 'annually', 'Hard Expenses');
   exp('othermaint', 'Other Maintenance', 'other_maintenance', 'other_maintenance_frequency', 'annually', 'Hard Expenses');
+  exp('kidsexc', 'Kids Excursions', 'kids_excursions', 'kids_excursions_frequency', 'annually', 'Soft Expenses');
+  exp('rent', 'Rent', 'rent', 'rent_frequency', 'weekly', 'Hard Expenses');
+  exp('debtrepay', 'Debt Repay', 'debt_repay', 'debt_repay_frequency', 'monthly', 'Hard Expenses');
   exp('gym', 'Gym', 'gym', 'gym_frequency', 'monthly', 'Soft Expenses');
   exp('subs', 'Subs', 'subscriptions', 'subscriptions_frequency', 'monthly', 'Hard Expenses', ['subscriptions']);
   // Any other "<X>" + "<X> Frequency" pairs added in HubSpot later.
@@ -170,7 +173,8 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
       apply: s => apply(s, amt, f),
     });
   };
-  ins('health', 'Health insurance', 'health_insurance_amount', 'health_insurance_frequency', (s, a, f) => setInsurance(s, 'health', a, f));
+  const healthNew = n(d.health_insurance) !== null;
+  ins('health', 'Health insurance', healthNew ? 'health_insurance' : 'health_insurance_amount', healthNew ? 'health_insurance_frequency2' : 'health_insurance_frequency', (s, a, f) => setInsurance(s, 'health', a, f));
   const houseNew = n(d.house_insurance) !== null;
   ins('house', 'House insurance', houseNew ? 'house_insurance' : 'home_insurance_amount', houseNew ? 'house_insurance_frequency' : 'home_insurance_frequency', (s, a, f) => setInsurance(s, 'house', a, f), 'annually');
   ins('life', 'Life insurance', 'life_insurance', 'life_insurance_frequency', (s, a, f) => setInsurance(s, 'life', a, f));
