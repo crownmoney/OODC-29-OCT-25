@@ -19,7 +19,7 @@ export const DEAL_PROPS = [
   // Income
   "net_income__1", "net_income__2", "total_monthly_after_tax_income__current_",
   // Expenses (amount + frequency)
-  "food", "fun", "fuel",
+  "food", "fun", "fuel", "gas", "electricity", "car_insurance",
   "childcare_amount", "childcare_frequency",
   "health_insurance_amount", "health_insurance_frequency",
   "home_insurance_amount", "home_insurance_frequency",
@@ -29,10 +29,14 @@ export const DEAL_PROPS = [
   "monthly_school", "education_cost_frequency",
   "medical", "medical_cost_frequency",
   "home_costs", "other_expenses_text",
+  // Frequency fields being added in HubSpot ("<field>_frequency"); ignored until they exist.
+  ...["food", "fun", "fuel", "gas", "electricity", "car_insurance", "home_costs", "mobile_phone", "monthly_school", "medical"].map(p => `${p}_frequency`),
   "total_monthly_expenses__current_", "monthly_expenses__without_mortgage_",
   // Other debts & savings (reference only)
   "total_of_other_debts", "debts_being_consolidated", "total_savings",
 ];
+
+const BASE_FREQ = new Set(["childcare_frequency", "health_insurance_frequency", "home_insurance_frequency", "motor_vehicle_frequency", "car_cost_frequency", "phone___internet_frequency", "education_cost_frequency", "medical_cost_frequency", "repayment_frequency"]);
 
 export default async (req: Request) => {
   if (!hasValidSession(req)) return Response.json({ error: "Please log in again." }, { status: 401 });
@@ -49,7 +53,13 @@ export default async (req: Request) => {
     const contactId = await findContactId(email);
     if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}.` }, { status: 404 });
     const [contact, deal] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), pickDeal(contactId)]);
-    const dealProps = deal ? await readProperties("deals", deal.id, DEAL_PROPS) : {};
+    // If HubSpot rejects a not-yet-created *_frequency field, retry without them.
+    const dealProps = deal
+      ? await readProperties("deals", deal.id, DEAL_PROPS).catch(err => {
+          if (err instanceof HubSpotError && err.status === 400) return readProperties("deals", deal.id, DEAL_PROPS.filter(p => !p.endsWith("_frequency") || BASE_FREQ.has(p)));
+          throw err;
+        })
+      : {};
     return Response.json({
       email,
       contact,

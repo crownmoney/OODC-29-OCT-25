@@ -122,32 +122,40 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   const exp = (id: string, label: string, amtProp: string, freqProp: string | null, fallback: Frequency, category: ExpenseItem['category'], aliases: string[] = [], note?: string) => {
     const amt = n(d[amtProp]);
     if (amt === null) return;
-    const f = freqProp ? freq(d[freqProp], fallback) : fallback;
+    // Frequency comes from the paired "<field>_frequency" property when filled.
+    const fp = freqProp ?? `${amtProp}_frequency`;
+    const f = freq(d[fp], fallback);
     items.push({
-      id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}${freqProp && d[freqProp] ? `, ${freqProp}` : ''}`,
-      note: note ?? (freqProp && !d[freqProp] ? `No frequency in HubSpot; assumed ${f}.` : undefined),
+      id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}${d[fp] ? `, ${fp}` : ''}`,
+      note: note ?? (!d[fp] ? `No frequency in HubSpot (${fp}); assumed ${f}.` : undefined),
       apply: s => upsertExpense(s, { name: label, amount: amt, frequency: f, category }, aliases),
     });
   };
-  const fffNote = 'HubSpot has no frequency for this; assumed weekly.';
-  exp('food', 'Food', 'food', null, 'weekly', 'FFF', ['groceries'], fffNote);
-  exp('fun', 'Fun', 'fun', null, 'weekly', 'FFF', [], fffNote);
-  exp('fuel', 'Fuel', 'fuel', null, 'weekly', 'FFF', [], fffNote);
+  exp('food', 'Food', 'food', null, 'weekly', 'FFF', ['groceries']);
+  exp('fun', 'Fun', 'fun', null, 'weekly', 'FFF');
+  exp('fuel', 'Fuel', 'fuel', null, 'weekly', 'FFF');
+  exp('gas', 'Gas', 'gas', null, 'quarterly', 'Hard Expenses', ['gas etc']);
+  exp('electricity', 'Electricity', 'electricity', null, 'quarterly', 'Hard Expenses', ['power']);
   exp('childcare', 'Childcare', 'childcare_amount', 'childcare_frequency', 'fortnightly', 'Hard Expenses');
   exp('phone', 'Phone etc', 'mobile_phone', 'phone___internet_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
   exp('school', 'School/Education', 'monthly_school', 'education_cost_frequency', 'monthly', 'Hard Expenses', ['school', 'education']);
   exp('medical', 'Medical', 'medical', 'medical_cost_frequency', 'monthly', 'Soft Expenses');
-  exp('homecosts', 'Home costs', 'home_costs', null, 'monthly', 'Hard Expenses', [], 'HubSpot has no frequency for this; assumed monthly.');
+  exp('homecosts', 'Home costs', 'home_costs', null, 'monthly', 'Hard Expenses');
 
   const ins = (id: string, label: string, amtProp: string, freqProp: string, apply: (s: AppState, amt: number, f: Frequency) => AppState) => {
     const amt = n(d[amtProp]);
     if (amt === null) return;
     const f = freq(d[freqProp], 'monthly');
-    items.push({ id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}, ${freqProp}`, apply: s => apply(s, amt, f) });
+    items.push({
+      id, group: 'Expenses', label, value: `${money(amt)} ${freqLabel(f)}`, source: `deal: ${amtProp}${d[freqProp] ? `, ${freqProp}` : ''}`,
+      note: d[freqProp] ? undefined : `No frequency in HubSpot (${freqProp}); assumed monthly.`,
+      apply: s => apply(s, amt, f),
+    });
   };
   ins('health', 'Health insurance', 'health_insurance_amount', 'health_insurance_frequency', (s, a, f) => setInsurance(s, 'health', a, f));
   ins('house', 'House insurance', 'home_insurance_amount', 'home_insurance_frequency', (s, a, f) => setInsurance(s, 'house', a, f));
-  ins('carins', 'Car insurance', 'motor_vehicle_insurance_amount', 'motor_vehicle_frequency',
+  const carInsNew = n(d.car_insurance) !== null;
+  ins('carins', 'Car insurance', carInsNew ? 'car_insurance' : 'motor_vehicle_insurance_amount', carInsNew ? 'car_insurance_frequency' : 'motor_vehicle_frequency',
     (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), insurance: { amount: a, frequency: f } } }));
   ins('carrun', 'Car running costs (→ Car maintenance)', 'car_running_costs', 'car_cost_frequency',
     (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), maintenance: { amount: a, frequency: f } } }));
