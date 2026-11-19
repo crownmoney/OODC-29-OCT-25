@@ -138,7 +138,10 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   exp('fuel', 'Fuel', 'fuel', null, 'weekly', 'FFF');
   exp('gas', 'Gas', 'gas', null, 'quarterly', 'Hard Expenses', ['gas etc']);
   exp('electricity', 'Electricity', 'electricity', null, 'quarterly', 'Hard Expenses', ['power']);
-  exp('childcare', 'Childcare', 'childcare_amount', 'childcare_frequency', 'fortnightly', 'Hard Expenses');
+  // Newer HubSpot fields take priority over the older equivalents.
+  if (n(d.childcare) !== null) exp('childcare', 'Childcare', 'childcare', 'childcare_frequency2', 'fortnightly', 'Hard Expenses');
+  else exp('childcare', 'Childcare', 'childcare_amount', 'childcare_frequency', 'fortnightly', 'Hard Expenses');
+  exp('kidsact', 'Kids Activities', 'kids_activities_netball', 'kids_activities_netball_frequency', 'monthly', 'Hard Expenses', ['kids activities (netball...)']);
   if (n(d.phone) !== null) exp('phone', 'Phone etc', 'phone', 'phone_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
   else exp('phone', 'Phone etc', 'mobile_phone', 'phone___internet_frequency', 'monthly', 'Hard Expenses', ['phone', 'phone & internet']);
   exp('internet', 'Internet', 'internet', 'internet_frequency', 'monthly', 'Hard Expenses', ['internet/media']);
@@ -151,8 +154,10 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   // Any other "<X>" + "<X> Frequency" pairs added in HubSpot later.
   for (const x of r.extraPairs ?? []) exp(`extra-${x.amountProp}`, x.label, x.amountProp, x.freqProp, 'monthly', 'Other');
   exp('poolmaint', 'Pool Maintenance', 'pool_maint', 'pool_maintenance_frequency', 'monthly', 'Hard Expenses', ['pool maint', 'pool']);
-  exp('school', 'School/Education', 'monthly_school', 'education_cost_frequency', 'monthly', 'Hard Expenses', ['school', 'education']);
-  exp('medical', 'Medical', 'medical', 'medical_cost_frequency', 'monthly', 'Soft Expenses');
+  if (n(d.private_schooleducation) !== null) exp('school', 'School/Education', 'private_schooleducation', 'private_schooleducation_frequency', 'annually', 'Hard Expenses', ['school', 'education', 'private school/education']);
+  else exp('school', 'School/Education', 'monthly_school', 'education_cost_frequency', 'monthly', 'Hard Expenses', ['school', 'education']);
+  if (n(d.medical2) !== null) exp('medical', 'Medical', 'medical2', 'medical2_frequency', 'monthly', 'Soft Expenses');
+  else exp('medical', 'Medical', 'medical', 'medical_cost_frequency', 'monthly', 'Soft Expenses');
   exp('homecosts', 'Home costs', 'home_costs', null, 'monthly', 'Hard Expenses');
 
   const ins = (id: string, label: string, amtProp: string, freqProp: string, apply: (s: AppState, amt: number, f: Frequency) => AppState, fallback: Frequency = 'monthly') => {
