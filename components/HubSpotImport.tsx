@@ -56,7 +56,7 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
 
   const doImport = () => {
     const count = importable.filter(i => selected.has(i.id)).length;
-    setAppState(s => applyImport(s, items, selected));
+    setAppState(s => applyImport(s, items, selected, result?.deal?.name ?? ''));
     onImported(count);
     onClose();
     setResult(null);

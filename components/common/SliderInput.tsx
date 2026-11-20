@@ -9,6 +9,7 @@ interface SliderInputProps {
   step?: number;
   unit?: string;
   className?: string;
+  badge?: React.ReactNode;
 }
 
 const SliderInput: React.FC<SliderInputProps> = ({
@@ -19,7 +20,8 @@ const SliderInput: React.FC<SliderInputProps> = ({
   max,
   step = 1,
   unit = '',
-  className = ''
+  className = '',
+  badge
 }) => {
   const [inputValue, setInputValue] = useState<string>(value.toString());
 
@@ -80,7 +82,7 @@ const SliderInput: React.FC<SliderInputProps> = ({
   return (
     <div className={`space-y-2 ${className}`}>
       <div className="flex justify-between items-center">
-        <label className="text-sm font-medium text-[var(--text-color)]">{label}</label>
+        <label className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-color)]">{label}{badge}</label>
         <div className="flex items-center gap-2">
           <input
             type="number"

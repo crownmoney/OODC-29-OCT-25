@@ -1,3 +1,5 @@
+import FetchedBadge from './common/FetchedBadge';
+import { fetchedTitle } from '../services/hubspotImport';
 import React, { useMemo } from 'react';
 import { AppState, AmortizationDataPoint, InvestmentProperty, Frequency } from '../types';
 import Card from './common/Card';
@@ -158,17 +160,17 @@ const Tab5_Summary: React.FC<Props> = ({ appState, setAppState, calculations, on
                 <h4 className="font-semibold text-sm mt-4 mb-2 text-[var(--text-color)] print:text-black">Contact & Meeting Details</h4>
                 <div className="space-y-4 py-2">
                     <div>
-                        <label className="block text-xs font-medium text-[var(--text-color-muted)]">Email Address</label>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Email Address<FetchedBadge title={fetchedTitle(appState, 'email', clientEmail)} /></label>
                         <input type="email" value={clientEmail} onChange={e => handleStateChange('clientEmail', e.target.value)} className={inputClasses}/>
                         <span className="hidden print:block text-sm text-black pt-1">{clientEmail || 'N/A'}</span>
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-[var(--text-color-muted)]">Phone Number</label>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Phone Number<FetchedBadge title={fetchedTitle(appState, 'phone', clientPhone)} /></label>
                         <input type="tel" value={clientPhone} onChange={e => handleStateChange('clientPhone', e.target.value)} className={inputClasses}/>
                         <span className="hidden print:block text-sm text-black pt-1">{clientPhone || 'N/A'}</span>
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-[var(--text-color-muted)]">Number of Kids</label>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Number of Kids<FetchedBadge title={fetchedTitle(appState, 'kids', numberOfKids)} /></label>
                         <input 
                             type="number" 
                             value={numberOfKids} 
@@ -179,7 +181,7 @@ const Tab5_Summary: React.FC<Props> = ({ appState, setAppState, calculations, on
                         <span className="hidden print:block text-sm text-black pt-1">{numberOfKids}</span>
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-[var(--text-color-muted)]">Current Lender (Bank Name)</label>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Current Lender (Bank Name)<FetchedBadge title={fetchedTitle(appState, 'lender', currentLender)} /></label>
                         <input type="text" value={currentLender} onChange={e => handleStateChange('currentLender', e.target.value)} className={inputClasses}/>
                         <span className="hidden print:block text-sm text-black pt-1">{currentLender || 'N/A'}</span>
                     </div>

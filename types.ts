@@ -32,6 +32,8 @@ export interface ExpenseItem {
   category: string;
   frequency: Frequency;
   isImported?: boolean;
+  /** Value came from "Fetch from HubSpot" and hasn't been edited since. */
+  fromHubSpot?: boolean;
   /** Set on items generated from the Car / Insurance sections; edited there, not in the generic list. */
   managed?: 'car' | 'insurance';
 }
@@ -88,6 +90,8 @@ export interface IncomeItem {
   amount: number;
   frequency: Frequency;
   isImported?: boolean;
+  /** Value came from "Fetch from HubSpot" and hasn't been edited since. */
+  fromHubSpot?: boolean;
 }
 
 export interface OtherDebt {
@@ -204,7 +208,15 @@ export interface LoanSummary {
   errorMessage?: string;
 }
 
+/** What the last "Fetch from HubSpot" filled in: field key -> value at import time. */
+export interface HubSpotFetched {
+  deal: string;
+  at: string;
+  values: Record<string, string | number>;
+}
+
 export interface AppState {
+  hubspotFetched?: HubSpotFetched;
   loan: LoanDetails;
   people: Person[];
   incomes: IncomeItem[];

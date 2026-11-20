@@ -497,7 +497,7 @@ const App: React.FC = () => {
         return serializableData;
       };
       // DNQ details go to HubSpot directly (below), not through Zapier.
-      const { dnqOverride: _dnq, ...appStateForZapier } = appState;
+      const { dnqOverride: _dnq, hubspotFetched: _hsf, ...appStateForZapier } = appState;
       const jsonData = { appState: appStateForZapier, calculations: getSerializableCalculations(calculations) };
       const { fields: newQuestionFields, summaryNote } = buildZapierFields(appState);
       const payload = {

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import FetchedBadge from './common/FetchedBadge';
+import { fetchedFrom } from '../services/hubspotImport';
 import { askAI } from '../services/api';
 import HouseholdBenchmarks, { BenchmarkHint } from './HouseholdBenchmarks';
 import { grossFromNet, TAX_YEAR_LABEL } from '../services/tax';
@@ -667,6 +669,8 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
     }
 
     newList[index] = { ...item, [field]: processedValue };
+    // An edited amount/frequency is no longer HubSpot's figure.
+    if ((field === 'amount' || field === 'frequency') && (item as any)?.fromHubSpot) (newList[index] as any).fromHubSpot = false;
     setList(newList);
   };
   
@@ -996,7 +1000,7 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
       <style dangerouslySetInnerHTML={{ __html: customStyles }} />
       {(incomes || []).map((income, index) => (
         <div key={income.id} className="items-center relative mb-2">
-            {income.isImported && <div className="absolute -top-2.5 -left-2 bg-indigo-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-wider print:hidden">Imported</div>}
+            {income.fromHubSpot ? <FetchedBadge title={fetchedFrom(appState.hubspotFetched)} className="absolute -top-2 -left-1.5 z-10 shadow-sm" /> : income.isImported && <div className="absolute -top-2.5 -left-2 bg-indigo-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-wider print:hidden">Imported</div>}
             <div className="grid grid-cols-12 gap-2 print:hidden">
               <input type="text" value={income.name} onChange={e => handleListChange(incomes, (l) => setAppState(s => ({...s, incomes: l})), index, 'name', e.target.value)} className={`col-span-4 ${inputClasses} ${income.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Income Source"/>
               <input type="number" value={income.amount || ''} onChange={e => handleListChange(incomes, (l) => setAppState(s => ({...s, incomes: l})), index, 'amount', parseFloat(e.target.value) || 0)} className={`col-span-4 ${inputClasses} ${income.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Amount"/>
@@ -1033,7 +1037,7 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
           const isHoliday = expenseNameLower.includes('holiday') || expenseNameLower.includes('vacation');
           return (
             <div key={expense.id} className="items-center relative mb-2">
-                {expense.isImported && <div className="absolute -top-2.5 -left-2 bg-indigo-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-wider print:hidden">Imported</div>}
+                {expense.fromHubSpot ? <FetchedBadge title={fetchedFrom(appState.hubspotFetched)} className="absolute -top-2 -left-1.5 z-10 shadow-sm" /> : expense.isImported && <div className="absolute -top-2.5 -left-2 bg-indigo-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-wider print:hidden">Imported</div>}
                 <div className="grid grid-cols-12 gap-2 print:hidden">
                   <input type="text" value={expense.name} onChange={e => handleListChange(expenses, (l) => setAppState(s => ({...s, expenses: l})), originalIndex, 'name', e.target.value)} className={`col-span-4 ${inputClasses} ${expense.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Expense Item"/>
                   <input type="number" value={expense.amount || ''} onChange={e => handleListChange(expenses, (l) => setAppState(s => ({...s, expenses: l})), originalIndex, 'amount', parseFloat(e.target.value) || 0)} className={`col-span-4 ${inputClasses} ${expense.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Amount"/>

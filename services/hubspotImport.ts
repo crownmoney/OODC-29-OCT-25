@@ -1,4 +1,5 @@
 import { AppState, ExpenseItem, Frequency, IncomeItem } from '../types';
+
 import { DEFAULT_CAR_SETUP, DEFAULT_INSURANCES, syncManagedItems } from './managedExpenses';
 
 // Maps the fields returned by /api/hubspot-fetch (HubSpot deal fact-find
@@ -224,7 +225,28 @@ const SAMPLE_EXPENSES: Record<string, [number, Frequency]> = {
   rates: [500, 'quarterly'], subs: [50, 'monthly'],
 };
 
-export const applyImport = (state: AppState, items: ImportItem[], selected: Set<string>): AppState => {
+// Import item id -> the calculator field it fills (for the "Fetched" tags).
+const insVal = (key: string) => (s: AppState) => s.insurances?.find(i => i.key === key)?.amount ?? undefined;
+export const FETCHED_FIELDS: Record<string, (s: AppState) => string | number | null | undefined> = {
+  p1name: s => s.people?.[0]?.name, p2name: s => s.people?.[1]?.name,
+  p1age: s => s.people?.[0]?.age, p2age: s => s.people?.[1]?.age,
+  phone: s => s.clientPhone, email: s => s.clientEmail, kids: s => s.numberOfKids, lender: s => s.currentLender,
+  loanAmount: s => s.loan?.amount, rate: s => s.loan?.interestRate, repayment: s => s.loan?.repayment,
+  offset: s => s.loan?.offsetBalance, propertyValue: s => s.loan?.propertyValue, term: s => s.loan?.loanTerm,
+  health: insVal('health'), house: insVal('house'), life: insVal('life'), incomeprot: insVal('income'), pet: insVal('pet'),
+  carins: s => s.carSetup?.insurance.amount, carmaint: s => s.carSetup?.maintenance.amount, carrego: s => s.carSetup?.rego.amount,
+};
+
+/** Tooltip text if this field still holds the value fetched from HubSpot, else null. */
+export const fetchedTitle = (s: AppState, key: string, current: unknown): string | null => {
+  const f = s.hubspotFetched;
+  if (!f || !(key in f.values) || current === undefined || current === null || String(f.values[key]) !== String(current)) return null;
+  return fetchedFrom(f);
+};
+export const fetchedFrom = (f: AppState['hubspotFetched']) =>
+  f ? `Fetched from HubSpot${f.deal ? ` (deal: ${f.deal})` : ''} on ${new Date(f.at).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Fetched from HubSpot';
+
+export const applyImport = (state: AppState, items: ImportItem[], selected: Set<string>, dealName = ''): AppState => {
   // Remember what an earlier import put in, then clear the flags so only
   // rows set by THIS import end up flagged.
   const prevIncome = new Set((state.incomes || []).filter(i => i.isImported).map(i => i.id));
@@ -254,5 +276,16 @@ export const applyImport = (state: AppState, items: ImportItem[], selected: Set<
   if (s.carSetup || s.insurances) {
     s = syncManagedItems({ ...s, carSetup: s.carSetup ?? DEFAULT_CAR_SETUP, insurances: s.insurances ?? DEFAULT_INSURANCES });
   }
-  return s;
+  // Record what came from HubSpot so the fields can show a "Fetched" tag.
+  const values: Record<string, string | number> = {};
+  for (const it of chosen) {
+    const v = FETCHED_FIELDS[it.id]?.(s);
+    if (v !== undefined && v !== null && v !== '') values[it.id] = v;
+  }
+  return {
+    ...s,
+    incomes: (s.incomes || []).map(i => ({ ...i, fromHubSpot: !!i.isImported })),
+    expenses: (s.expenses || []).map(e => (e.managed ? e : { ...e, fromHubSpot: !!e.isImported })),
+    hubspotFetched: { deal: dealName, at: new Date().toISOString(), values },
+  };
 };

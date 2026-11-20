@@ -1,3 +1,5 @@
+import FetchedBadge from './common/FetchedBadge';
+import { fetchedTitle } from '../services/hubspotImport';
 import React from 'react';
 import Card from './common/Card';
 import { AppState } from '../types';
@@ -74,7 +76,7 @@ const HouseholdBenchmarks: React.FC<Props> = ({ appState, setAppState }) => {
     <Card title="Household Benchmarks">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 print:hidden">
         <div>
-          <label htmlFor="hb-kids" className="block text-xs font-medium text-[var(--text-color-muted)] mb-1">How many kids?</label>
+          <label htmlFor="hb-kids" className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)] mb-1">How many kids?<FetchedBadge title={fetchedTitle(appState, 'kids', numberOfKids)} /></label>
           <input
             id="hb-kids"
             type="number"
