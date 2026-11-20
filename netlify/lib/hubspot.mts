@@ -44,19 +44,46 @@ export const associatedIds = async (fromType: string, fromId: string, toType: st
   return (assoc?.results ?? []).map((r: any) => String(r.toObjectId));
 };
 
-/** Newest open deal on the contact (else newest deal). */
-export const pickDeal = async (contactId: string) => {
-  const dealIds = await associatedIds("contacts", contactId, "deals");
-  if (!dealIds.length) return null;
-  const batch = await hs("/crm/v3/objects/deals/batch/read", {
-    method: "POST",
-    body: JSON.stringify({ properties: ["dealname", "createdate", "hs_is_closed"], inputs: dealIds.map(id => ({ id })) }),
-  });
-  const deals = (batch?.results ?? []).sort(
-    (a: any, b: any) => new Date(b.properties?.createdate ?? 0).getTime() - new Date(a.properties?.createdate ?? 0).getTime(),
-  );
-  return deals.find((d: any) => d.properties?.hs_is_closed !== "true") ?? deals[0] ?? null;
+export interface DealSummary { id: string; name: string; stage: string; pipeline: string; closed: boolean; created: string }
+
+/** Deal stage id -> label (and pipeline id -> label). Empty maps if not readable. */
+const stageLabels = async () => {
+  const stages = new Map<string, string>(), pipelines = new Map<string, string>();
+  try {
+    const data = await hs("/crm/v3/pipelines/deals");
+    for (const p of data?.results ?? []) {
+      pipelines.set(String(p.id), p.label);
+      for (const st of p.stages ?? []) stages.set(String(st.id), st.label);
+    }
+  } catch { /* fall back to raw ids */ }
+  return { stages, pipelines };
 };
+
+/** All deals on the contact, newest first, with stage names. */
+export const listDeals = async (contactId: string): Promise<DealSummary[]> => {
+  const dealIds = await associatedIds("contacts", contactId, "deals");
+  if (!dealIds.length) return [];
+  const [batch, labels] = await Promise.all([
+    hs("/crm/v3/objects/deals/batch/read", {
+      method: "POST",
+      body: JSON.stringify({ properties: ["dealname", "createdate", "hs_is_closed", "dealstage", "pipeline"], inputs: dealIds.map(id => ({ id })) }),
+    }),
+    stageLabels(),
+  ]);
+  return (batch?.results ?? [])
+    .map((d: any): DealSummary => ({
+      id: String(d.id),
+      name: d.properties?.dealname ?? "",
+      stage: labels.stages.get(String(d.properties?.dealstage)) ?? d.properties?.dealstage ?? "",
+      pipeline: labels.pipelines.get(String(d.properties?.pipeline)) ?? d.properties?.pipeline ?? "",
+      closed: d.properties?.hs_is_closed === "true",
+      created: d.properties?.createdate ?? "",
+    }))
+    .sort((a: DealSummary, b: DealSummary) => new Date(b.created).getTime() - new Date(a.created).getTime());
+};
+
+/** Newest open deal (else newest deal) from a list. */
+export const defaultDeal = (deals: DealSummary[]) => deals.find(d => !d.closed) ?? deals[0] ?? null;
 
 /** Reads specific properties of one record. */
 export const readProperties = async (objectType: string, id: string, properties: string[]) => {

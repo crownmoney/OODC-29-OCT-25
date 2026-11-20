@@ -8,7 +8,9 @@ import { DEFAULT_CAR_SETUP, DEFAULT_INSURANCES, syncManagedItems } from './manag
 export interface HubSpotFetchResult {
   email: string;
   contact: Record<string, string>;
-  deal: { id: string; name: string; properties: Record<string, string> } | null;
+  deal: { id: string; name: string; stage?: string; properties: Record<string, string> } | null;
+  /** Every deal on the contact, newest first, so the consultant can pick one. */
+  deals?: { id: string; name: string; stage: string; pipeline: string; closed: boolean; created: string }[];
   /** Amount + frequency pairs found in HubSpot that have no specific mapping yet. */
   extraPairs?: { amountProp: string; freqProp: string; label: string }[];
 }

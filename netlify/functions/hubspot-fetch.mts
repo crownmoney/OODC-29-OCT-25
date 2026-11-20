@@ -1,6 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { hasValidSession } from "../lib/session.mts";
-import { HubSpotError, findContactId, pickDeal, readProperties, discoverFrequencyPairs } from "../lib/hubspot.mts";
+import { HubSpotError, findContactId, listDeals, defaultDeal, readProperties, discoverFrequencyPairs } from "../lib/hubspot.mts";
 
 // "Fetch from HubSpot": returns the client's contact basics and the fact-find
 // fields on their newest open deal. The app maps them onto calculator fields
@@ -48,17 +48,21 @@ export default async (req: Request) => {
   if (!hasValidSession(req)) return Response.json({ error: "Please log in again." }, { status: 401 });
   if (!Netlify.env.get("HUBSPOT_PRIVATE_KEY")) return Response.json({ error: "HubSpot is not configured." }, { status: 500 });
 
-  let email = "";
+  let email = "", dealId = "";
   try {
     const body = await req.json();
     email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    dealId = typeof body?.dealId === "string" && /^\d{1,20}$/.test(body.dealId) ? body.dealId : "";
   } catch { /* fall through */ }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
 
   try {
     const contactId = await findContactId(email);
     if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}.` }, { status: 404 });
-    const [contact, deal, pairs] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), pickDeal(contactId), discoverFrequencyPairs()]);
+    const [contact, deals, pairs] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), listDeals(contactId), discoverFrequencyPairs()]);
+    // A chosen deal must belong to this contact.
+    const deal = dealId ? deals.find(d => d.id === dealId) ?? null : defaultDeal(deals);
+    if (dealId && !deal) return Response.json({ error: "That deal isn't linked to this client." }, { status: 400 });
     // Any "<X>" + "<X> Frequency" pair added in HubSpot that the app doesn't map yet.
     const known = new Set(DEAL_PROPS);
     const extraPairs = pairs.filter(p => !known.has(p.amountProp) && !known.has(p.freqProp));
@@ -73,7 +77,8 @@ export default async (req: Request) => {
     return Response.json({
       email,
       contact,
-      deal: deal ? { id: deal.id, name: deal.properties?.dealname ?? "", properties: dealProps } : null,
+      deal: deal ? { id: deal.id, name: deal.name, stage: deal.stage, properties: dealProps } : null,
+      deals,
       extraPairs,
     });
   } catch (error) {

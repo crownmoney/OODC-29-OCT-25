@@ -24,14 +24,17 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
   const items = useMemo(() => (result ? buildImportItems(result) : []), [result]);
   const importable = items.filter(i => i.apply);
 
-  const fetchData = async (e?: React.FormEvent) => {
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  const fetchData = async (e?: React.FormEvent, dealId?: string) => {
     e?.preventDefault();
-    setLoading(true); setError(''); setResult(null);
+    if (dealId) setSwitching(dealId); else { setLoading(true); setResult(null); }
+    setError('');
     try {
       const res = await fetch('/api/hubspot-fetch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(dealId ? { email, dealId } : { email }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HubSpot lookup failed (${res.status})`);
@@ -41,7 +44,7 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
     } catch (err) {
       setError(err instanceof Error ? err.message : 'HubSpot lookup failed.');
     } finally {
-      setLoading(false);
+      setLoading(false); setSwitching(null);
     }
   };
 
@@ -95,8 +98,35 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
             )}
             {result && (
               <>
+                {(result.deals?.length ?? 0) > 1 && (
+                  <section className="mb-4">
+                    <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-[var(--title-color)]">
+                      Choose the deal <span className="ml-1 normal-case font-normal text-[var(--text-color-muted)]">({result.deals!.length} deals on this client)</span>
+                    </h3>
+                    <div role="radiogroup" aria-label="Deal to import from" className="grid gap-2">
+                      {result.deals!.map(dl => {
+                        const active = dl.id === result.deal?.id;
+                        return (
+                          <button key={dl.id} type="button" role="radio" aria-checked={active} disabled={!!switching}
+                            onClick={() => !active && fetchData(undefined, dl.id)}
+                            className={`flex items-center justify-between gap-3 rounded-xl border-2 px-4 py-2.5 text-left transition-colors ${active ? 'border-[var(--title-color)] bg-[var(--title-color)]/10' : 'border-[var(--border-color)] hover:border-[var(--title-color)]/50'} disabled:opacity-60`}>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-bold text-[var(--text-color)]">{dl.name || `Deal ${dl.id}`}</span>
+                              <span className="block text-xs text-[var(--text-color-muted)]">
+                                Stage: <strong className={dl.closed ? 'text-[var(--text-color-muted)]' : 'text-[var(--text-color)]'}>{dl.stage || 'Unknown'}</strong>
+                                {dl.created && <> · created {new Date(dl.created).toLocaleDateString('en-AU')}</>}
+                              </span>
+                            </span>
+                            {switching === dl.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--title-color)]" />
+                              : active ? <Check className="h-4 w-4 shrink-0 text-[var(--title-color)]" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
                 <p className="mb-3 text-sm text-[var(--text-color-muted)]">
-                  {result.deal ? <>Deal: <strong className="text-[var(--text-color)]">{result.deal.name || result.deal.id}</strong>. </> : 'No deal found, so only contact details are available. '}
+                  {result.deal ? <>Importing from <strong className="text-[var(--text-color)]">{result.deal.name || result.deal.id}</strong>{result.deal.stage ? <> ({result.deal.stage})</> : null}. </> : 'No deal found, so only contact details are available. '}
                   Untick anything you don't want to import. Imported values replace what's in the calculator, and sample figures (or a previous client's imported figures) are cleared.
                 </p>
                 {importable.length === 0 && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No calculator fields are filled in on this client's HubSpot deal yet.</p>}
