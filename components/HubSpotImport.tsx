@@ -97,7 +97,7 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
               <>
                 <p className="mb-3 text-sm text-[var(--text-color-muted)]">
                   {result.deal ? <>Deal: <strong className="text-[var(--text-color)]">{result.deal.name || result.deal.id}</strong>. </> : 'No deal found, so only contact details are available. '}
-                  Untick anything you don't want to import. Imported values replace what's in the calculator.
+                  Untick anything you don't want to import. Imported values replace what's in the calculator, and sample figures (or a previous client's imported figures) are cleared.
                 </p>
                 {importable.length === 0 && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">No calculator fields are filled in on this client's HubSpot deal yet.</p>}
                 {GROUPS.map(g => {

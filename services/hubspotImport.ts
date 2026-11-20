@@ -106,11 +106,11 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   if (o2) incomeLines.push({ name: 'Partner Other Income', amount: o2, src: 'net_income_2_other', freqSrc: 'net_income_2_other_frequency' });
   if (incomeLines.length) {
     for (const l of incomeLines) {
-      const f = freq(d[l.freqSrc], 'annually');
+      const f = freq(d[l.freqSrc], 'monthly');
       const hasF = !!d[l.freqSrc];
       items.push({
         id: `inc-${l.src}`, group: 'Income', label: l.name, value: `${money(l.amount)} ${freqLabel(f)}`, source: `deal: ${l.src}${hasF ? `, ${l.freqSrc}` : ''}`,
-        note: hasF ? incomeNote : `${incomeNote} No frequency set in HubSpot (assumed yearly).`,
+        note: hasF ? incomeNote : `${incomeNote} No frequency set in HubSpot (assumed monthly).`,
         apply: s => {
           const others = (s.incomes || []).filter(x => (x.name || '').toLowerCase() !== l.name.toLowerCase());
           const inc: IncomeItem = { ...(s.incomes?.[0] ?? {}), id: Date.now() + Math.floor(Math.random() * 1e6), name: l.name, amount: l.amount, frequency: f, isImported: true } as IncomeItem;
@@ -213,9 +213,40 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
 };
 
 /** Applies the selected items, then re-syncs Car/Insurance-managed expenses. */
+// The calculator starts with sample figures (App.tsx initialAppState). When
+// HubSpot data comes in, those samples must not be left mixed in with it.
+const SAMPLE_INCOME_NAMES = ['person 1 income', 'person 2 income'];
+const SAMPLE_EXPENSES: Record<string, [number, Frequency]> = {
+  food: [200, 'weekly'], fun: [125, 'weekly'], fuel: [75, 'weekly'], holidays: [3000, 'annually'], misc: [200, 'monthly'],
+  gifts: [500, 'annually'], clothes: [100, 'monthly'], 'gas etc': [300, 'quarterly'], 'phone etc': [150, 'monthly'],
+  rates: [500, 'quarterly'], subs: [50, 'monthly'],
+};
+
 export const applyImport = (state: AppState, items: ImportItem[], selected: Set<string>): AppState => {
-  let s = state;
-  for (const it of items) if (it.apply && selected.has(it.id)) s = it.apply(s);
+  // Remember what an earlier import put in, then clear the flags so only
+  // rows set by THIS import end up flagged.
+  const prevIncome = new Set((state.incomes || []).filter(i => i.isImported).map(i => i.id));
+  const prevExpense = new Set((state.expenses || []).filter(e => e.isImported && !e.managed).map(e => e.id));
+  let s: AppState = {
+    ...state,
+    incomes: (state.incomes || []).map(i => ({ ...i, isImported: false })),
+    expenses: (state.expenses || []).map(e => (e.managed ? e : { ...e, isImported: false })),
+  };
+  const chosen = items.filter(it => it.apply && selected.has(it.id));
+  for (const it of chosen) s = it.apply!(s);
+  if (chosen.some(it => it.group === 'Income')) {
+    // Drop sample incomes and incomes from a previous client's import.
+    s = { ...s, incomes: (s.incomes || []).filter(i => i.isImported || !(prevIncome.has(i.id) || SAMPLE_INCOME_NAMES.includes((i.name || '').toLowerCase()))) };
+  }
+  if (chosen.some(it => it.group === 'Expenses')) {
+    // Blank sample figures and a previous client's imported figures that this client doesn't have.
+    s = { ...s, expenses: (s.expenses || []).map(e => {
+      if (e.managed || e.isImported) return e;
+      const sample = SAMPLE_EXPENSES[(e.name || '').toLowerCase()];
+      const isSample = sample && e.amount === sample[0] && e.frequency === sample[1];
+      return isSample || prevExpense.has(e.id) ? { ...e, amount: 0 } : e;
+    }) };
+  }
   if (s.carSetup || s.insurances) {
     s = syncManagedItems({ ...s, carSetup: s.carSetup ?? DEFAULT_CAR_SETUP, insurances: s.insurances ?? DEFAULT_INSURANCES });
   }
