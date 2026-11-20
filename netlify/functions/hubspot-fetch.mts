@@ -59,7 +59,7 @@ export default async (req: Request) => {
   try {
     const contactId = await findContactId(email);
     if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}.` }, { status: 404 });
-    const [contact, deals, pairs] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), listDeals(contactId), discoverFrequencyPairs()]);
+    const [contact, deals, pairs] = await Promise.all([readProperties("contacts", contactId, CONTACT_PROPS), listDeals(contactId, email), discoverFrequencyPairs()]);
     // A chosen deal must belong to this contact.
     const deal = dealId ? deals.find(d => d.id === dealId) ?? null : defaultDeal(deals);
     if (dealId && !deal) return Response.json({ error: "That deal isn't linked to this client." }, { status: 400 });

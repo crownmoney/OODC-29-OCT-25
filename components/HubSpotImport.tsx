@@ -115,6 +115,7 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
                               <span className="block text-xs text-[var(--text-color-muted)]">
                                 Stage: <strong className={dl.closed ? 'text-[var(--text-color-muted)]' : 'text-[var(--text-color)]'}>{dl.stage || 'Unknown'}</strong>
                                 {dl.created && <> · created {new Date(dl.created).toLocaleDateString('en-AU')}</>}
+                                {dl.linked === false && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">Not linked to this contact – found by email in deal name</span>}
                               </span>
                             </span>
                             {switching === dl.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--title-color)]" />

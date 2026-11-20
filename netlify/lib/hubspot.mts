@@ -44,7 +44,7 @@ export const associatedIds = async (fromType: string, fromId: string, toType: st
   return (assoc?.results ?? []).map((r: any) => String(r.toObjectId));
 };
 
-export interface DealSummary { id: string; name: string; stage: string; pipeline: string; closed: boolean; created: string }
+export interface DealSummary { id: string; name: string; stage: string; pipeline: string; closed: boolean; created: string; linked: boolean }
 
 /** Deal stage id -> label (and pipeline id -> label). Empty maps if not readable. */
 const stageLabels = async () => {
@@ -59,18 +59,38 @@ const stageLabels = async () => {
   return { stages, pipelines };
 };
 
-/** All deals on the contact, newest first, with stage names. */
-export const listDeals = async (contactId: string): Promise<DealSummary[]> => {
-  const dealIds = await associatedIds("contacts", contactId, "deals");
-  if (!dealIds.length) return [];
-  const [batch, labels] = await Promise.all([
-    hs("/crm/v3/objects/deals/batch/read", {
+const DEAL_SUMMARY_PROPS = ["dealname", "createdate", "hs_is_closed", "dealstage", "pipeline"];
+
+/** Deals whose name contains the email (e.g. "New Deal - x@y.com") but that aren't linked to the contact. */
+const dealsNamedWithEmail = async (email: string): Promise<any[]> => {
+  try {
+    const data = await hs("/crm/v3/objects/deals/search", {
       method: "POST",
-      body: JSON.stringify({ properties: ["dealname", "createdate", "hs_is_closed", "dealstage", "pipeline"], inputs: dealIds.map(id => ({ id })) }),
-    }),
+      body: JSON.stringify({ query: email, properties: DEAL_SUMMARY_PROPS, limit: 20 }),
+    });
+    return (data?.results ?? []).filter((d: any) => String(d.properties?.dealname ?? "").toLowerCase().includes(email));
+  } catch {
+    return [];
+  }
+};
+
+/** All deals on the contact (plus unlinked deals named with their email), newest first, with stage names. */
+export const listDeals = async (contactId: string, email: string): Promise<DealSummary[]> => {
+  const dealIds = await associatedIds("contacts", contactId, "deals");
+  const [batch, named, labels] = await Promise.all([
+    dealIds.length
+      ? hs("/crm/v3/objects/deals/batch/read", {
+          method: "POST",
+          body: JSON.stringify({ properties: DEAL_SUMMARY_PROPS, inputs: dealIds.map(id => ({ id })) }),
+        })
+      : Promise.resolve({ results: [] }),
+    dealsNamedWithEmail(email),
     stageLabels(),
   ]);
-  return (batch?.results ?? [])
+  const linked = new Set(dealIds);
+  const seen = new Set<string>();
+  return [...(batch?.results ?? []), ...named]
+    .filter((d: any) => !seen.has(String(d.id)) && seen.add(String(d.id)))
     .map((d: any): DealSummary => ({
       id: String(d.id),
       name: d.properties?.dealname ?? "",
@@ -78,12 +98,14 @@ export const listDeals = async (contactId: string): Promise<DealSummary[]> => {
       pipeline: labels.pipelines.get(String(d.properties?.pipeline)) ?? d.properties?.pipeline ?? "",
       closed: d.properties?.hs_is_closed === "true",
       created: d.properties?.createdate ?? "",
+      linked: linked.has(String(d.id)),
     }))
     .sort((a: DealSummary, b: DealSummary) => new Date(b.created).getTime() - new Date(a.created).getTime());
 };
 
 /** Newest open deal (else newest deal) from a list. */
-export const defaultDeal = (deals: DealSummary[]) => deals.find(d => !d.closed) ?? deals[0] ?? null;
+export const defaultDeal = (deals: DealSummary[]) =>
+  deals.find(d => d.linked && !d.closed) ?? deals.find(d => !d.closed) ?? deals.find(d => d.linked) ?? deals[0] ?? null;
 
 /** Reads specific properties of one record. */
 export const readProperties = async (objectType: string, id: string, properties: string[]) => {
