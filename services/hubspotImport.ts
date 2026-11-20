@@ -236,11 +236,13 @@ export const applyImport = (state: AppState, items: ImportItem[], selected: Set<
   };
   const chosen = items.filter(it => it.apply && selected.has(it.id));
   for (const it of chosen) s = it.apply!(s);
-  if (chosen.some(it => it.group === 'Income')) {
+  // Always clear samples / a previous client's figures, even if this deal has none,
+  // so nothing that didn't come from this client is left looking real.
+  if (chosen.length) {
     // Drop sample incomes and incomes from a previous client's import.
     s = { ...s, incomes: (s.incomes || []).filter(i => i.isImported || !(prevIncome.has(i.id) || SAMPLE_INCOME_NAMES.includes((i.name || '').toLowerCase()))) };
   }
-  if (chosen.some(it => it.group === 'Expenses')) {
+  if (chosen.length) {
     // Blank sample figures and a previous client's imported figures that this client doesn't have.
     s = { ...s, expenses: (s.expenses || []).map(e => {
       if (e.managed || e.isImported) return e;
