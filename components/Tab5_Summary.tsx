@@ -1,5 +1,7 @@
 import FetchedBadge from './common/FetchedBadge';
 import { fetchedTitle } from '../services/hubspotImport';
+import MapInfo from './common/MapInfo';
+import { SCALAR_PROPS } from '../services/hubspotMap';
 import React, { useMemo } from 'react';
 import { AppState, AmortizationDataPoint, InvestmentProperty, Frequency } from '../types';
 import Card from './common/Card';
@@ -170,7 +172,7 @@ const Tab5_Summary: React.FC<Props> = ({ appState, setAppState, calculations, on
                         <span className="hidden print:block text-sm text-black pt-1">{clientPhone || 'N/A'}</span>
                     </div>
                     <div>
-                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Number of Kids<FetchedBadge title={fetchedTitle(appState, 'kids', numberOfKids)} /></label>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Number of Kids<MapInfo props={SCALAR_PROPS.kids} label="Number of kids" /><FetchedBadge title={fetchedTitle(appState, 'kids', numberOfKids)} /></label>
                         <input 
                             type="number" 
                             value={numberOfKids} 
@@ -181,7 +183,7 @@ const Tab5_Summary: React.FC<Props> = ({ appState, setAppState, calculations, on
                         <span className="hidden print:block text-sm text-black pt-1">{numberOfKids}</span>
                     </div>
                     <div>
-                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Current Lender (Bank Name)<FetchedBadge title={fetchedTitle(appState, 'lender', currentLender)} /></label>
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-color-muted)]">Current Lender (Bank Name)<MapInfo props={SCALAR_PROPS.lender} label="Current lender" /><FetchedBadge title={fetchedTitle(appState, 'lender', currentLender)} /></label>
                         <input type="text" value={currentLender} onChange={e => handleStateChange('currentLender', e.target.value)} className={inputClasses}/>
                         <span className="hidden print:block text-sm text-black pt-1">{currentLender || 'N/A'}</span>
                     </div>

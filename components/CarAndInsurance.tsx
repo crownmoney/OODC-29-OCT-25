@@ -1,5 +1,7 @@
 import FetchedBadge from './common/FetchedBadge';
 import { fetchedTitle } from '../services/hubspotImport';
+import MapInfo from './common/MapInfo';
+import { CAR_PROPS, INSURANCE_PROPS, PropPair } from '../services/hubspotMap';
 import React from 'react';
 import { AppState, CarSetup, Frequency, InsuranceItem, RequiredCost } from '../types';
 import { DEFAULT_CAR_SETUP, DEFAULT_INSURANCES, syncManagedItems } from '../services/managedExpenses';
@@ -26,13 +28,14 @@ const CostRow: React.FC<{
   hint?: string;
   optional?: boolean;
   fetched?: string | null;
-}> = ({ label, cost, onChange, hint, optional = false, fetched = null }) => {
+  map?: PropPair | null;
+}> = ({ label, cost, onChange, hint, optional = false, fetched = null, map }) => {
   const unanswered = cost.amount === null && !optional;
   return (
     <div>
       <div className="grid grid-cols-12 gap-2 items-center print:hidden">
         <label className="col-span-4 text-sm font-medium text-[var(--text-color)]">
-          {label} {!optional && <span className="text-amber-600">*</span>} <FetchedBadge title={fetched} className="ml-1 align-middle" />
+          {label} {!optional && <span className="text-amber-600">*</span>} {map !== undefined && <MapInfo props={map} label={label} className="ml-1 align-middle" />}<FetchedBadge title={fetched} className="ml-1 align-middle" />
         </label>
         <input
           type="number"
@@ -100,9 +103,9 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
       {/* Car */}
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg-color)] p-5 space-y-3 shadow-sm">
         <SectionHeader icon={Car} title="Car" subtitle="Include all cars in the household. Enter 0 if a cost doesn't apply." remaining={carUnanswered + (car.hasLease === null ? 1 : 0)} total={4} />
-        <CostRow label="Car Maintenance" cost={car.maintenance} onChange={c => updateCar({ maintenance: c })} fetched={fetchedTitle(appState, 'carmaint', car.maintenance.amount)} />
-        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} fetched={fetchedTitle(appState, 'carins', car.insurance.amount)} />
-        <CostRow label="Car Rego" cost={car.rego} onChange={c => updateCar({ rego: c })} fetched={fetchedTitle(appState, 'carrego', car.rego.amount)} />
+        <CostRow label="Car Maintenance" cost={car.maintenance} onChange={c => updateCar({ maintenance: c })} map={CAR_PROPS.maintenance} fetched={fetchedTitle(appState, 'carmaint', car.maintenance.amount)} />
+        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} map={CAR_PROPS.insurance} fetched={fetchedTitle(appState, 'carins', car.insurance.amount)} />
+        <CostRow label="Car Rego" cost={car.rego} onChange={c => updateCar({ rego: c })} map={CAR_PROPS.rego} fetched={fetchedTitle(appState, 'carrego', car.rego.amount)} />
 
         <div className="pt-2 border-t border-dashed border-[var(--border-color)] print:hidden">
           <label className="flex items-start gap-2 text-sm cursor-pointer">
@@ -178,11 +181,11 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg-color)] p-5 space-y-3 shadow-sm">
         <SectionHeader icon={ShieldCheck} title="Insurance" subtitle="Optional. Add any policies you hold." />
         {insurances.slice(0, 2).map(i => (
-          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} optional fetched={fetchedTitle(appState, INS_IMPORT_ID[i.key] ?? i.key, i.amount)} />
+          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} map={INSURANCE_PROPS[i.key] ?? null} optional fetched={fetchedTitle(appState, INS_IMPORT_ID[i.key] ?? i.key, i.amount)} />
         ))}
-        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} optional fetched={fetchedTitle(appState, 'carins', car.insurance.amount)} />
+        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} map={CAR_PROPS.insurance} optional fetched={fetchedTitle(appState, 'carins', car.insurance.amount)} />
         {insurances.slice(2).map(i => (
-          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} optional fetched={fetchedTitle(appState, INS_IMPORT_ID[i.key] ?? i.key, i.amount)} />
+          <CostRow key={i.key} label={i.name} cost={i} onChange={c => updateInsurance(i.key, c)} map={INSURANCE_PROPS[i.key] ?? null} optional fetched={fetchedTitle(appState, INS_IMPORT_ID[i.key] ?? i.key, i.amount)} />
         ))}
       </div>
     </div>

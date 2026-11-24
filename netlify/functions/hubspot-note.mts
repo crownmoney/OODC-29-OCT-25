@@ -1,6 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { hasValidSession } from "../lib/session.mts";
 import { HubSpotError, hs, findContactId, listDeals, defaultDeal } from "../lib/hubspot.mts";
+import { writeDealProperties } from "../lib/dealWrite.mts";
 
 // Posts the DNQ assessment as a note on the client's HubSpot DEAL and writes
 // the "OODC Latest Scenario Info" deal property (oodc_latest_scenario_info).
@@ -77,6 +78,23 @@ ${scen("With planned changes", a.withChanges)}
 <p><em>Posted automatically by the Out of Debt Calculator (oodc.net.au).</em></p>`.trim();
 };
 
+const buildFieldsNote = (rows: any[], written: string[], skipped: { name: string; reason: string }[]) => {
+  const ok = new Set(written);
+  const bad = new Map(skipped.map(x => [x.name, x.reason]));
+  const body = rows.slice(0, 400).map(r => {
+    const props = String(r.props ?? "");
+    const names = props.split(" + ").filter(Boolean);
+    const status = !names.length ? "Not mapped (see OODC Latest Scenario Info)"
+      : names.some(n => bad.has(n)) ? `NOT written: ${names.filter(n => bad.has(n)).map(n => `${n} – ${bad.get(n)}`).join("; ")}`
+      : names.every(n => ok.has(n)) ? "Written" : "Not written (no value)";
+    return `<tr><td>${esc(r.section)}</td><td>${esc(r.label)}</td><td>${esc(r.value)}</td><td>${esc(props || "—")}</td><td>${esc(status)}</td></tr>`;
+  }).join("");
+  return `<h3>OODC upload – all fields and their HubSpot properties</h3>
+<p>${written.length} deal properties updated${skipped.length ? `, ${skipped.length} rejected by HubSpot` : ""}.</p>
+<table><tr><th>Section</th><th>Field</th><th>Value</th><th>HubSpot property</th><th>Status</th></tr>${body}</table>
+<p><em>Posted automatically by the Out of Debt Calculator (oodc.net.au).</em></p>`;
+};
+
 // ---------------------------------------------------------------------------
 export default async (req: Request) => {
   if (!hasValidSession(req)) return Response.json({ error: "Please log in again." }, { status: 401 });
@@ -89,7 +107,7 @@ export default async (req: Request) => {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
   const email = typeof p?.email === "string" ? p.email.trim().toLowerCase() : "";
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !p?.assessment || JSON.stringify(p).length > 120_000) {
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !p?.assessment || JSON.stringify(p).length > 250_000) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
   if (p.override && (typeof p.override.reason !== "string" || p.override.reason.trim().length < 10)) {
@@ -109,6 +127,7 @@ export default async (req: Request) => {
 
     const dryRun = p.dryRun === true;
     let scenarioSaved = false, scenarioError = "";
+    let written: string[] = [], skipped: { name: string; reason: string }[] = [];
     if (!dryRun) {
       await hs("/crm/v3/objects/notes", {
         method: "POST",
@@ -117,17 +136,29 @@ export default async (req: Request) => {
           associations: [{ to: { id: deal.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] }],
         }),
       });
-      if (scenarioInfo) {
-        try {
-          await hs(`/crm/v3/objects/deals/${deal.id}`, { method: "PATCH", body: JSON.stringify({ properties: { oodc_latest_scenario_info: scenarioInfo } }) });
-          scenarioSaved = true;
-        } catch (err) {
-          scenarioError = err instanceof HubSpotError ? err.message : "Couldn't update the deal.";
-          console.error("Scenario info update failed:", err);
-        }
+      // Write the calculator's fields (and the scenario summary) to the deal.
+      const dealProps = { ...(p.dealProperties && typeof p.dealProperties === "object" ? p.dealProperties : {}), ...(scenarioInfo ? { oodc_latest_scenario_info: scenarioInfo } : {}) };
+      try {
+        const r = await writeDealProperties(deal.id, dealProps);
+        written = r.written; skipped = r.skipped;
+        scenarioSaved = r.written.includes("oodc_latest_scenario_info");
+        if (scenarioInfo && !scenarioSaved) scenarioError = "HubSpot rejected it.";
+      } catch (err) {
+        scenarioError = err instanceof HubSpotError ? err.message : "Couldn't update the deal.";
+        console.error("Deal property update failed:", err);
+      }
+      // Second note: every field, its value and its HubSpot property.
+      if (Array.isArray(p.fieldRows) && p.fieldRows.length) {
+        await hs("/crm/v3/objects/notes", {
+          method: "POST",
+          body: JSON.stringify({
+            properties: { hs_timestamp: new Date().toISOString(), hs_note_body: buildFieldsNote(p.fieldRows, written, skipped) },
+            associations: [{ to: { id: deal.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] }],
+          }),
+        }).catch(err => console.error("Fields note failed:", err));
       }
     }
-    return Response.json({ ok: true, dryRun, dealId: deal.id, dealName: deal.name, scenarioSaved, scenarioError });
+    return Response.json({ ok: true, dryRun, dealId: deal.id, dealName: deal.name, scenarioSaved, scenarioError, written: written.length, skipped });
   } catch (error) {
     const msg = error instanceof HubSpotError ? error.message : "Couldn't reach HubSpot.";
     console.error("HubSpot note failed:", error);

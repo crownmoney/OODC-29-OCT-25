@@ -1,22 +1,14 @@
 import { AppState, Frequency } from '../types';
+import { EXPENSE_PROPS, INCOME_PROPS, INSURANCE_PROPS } from './hubspotMap';
 
 // Plain-text summary for the HubSpot deal property "OODC Latest Scenario Info"
 // (oodc_latest_scenario_info). It holds what has no HubSpot field of its own:
 // debts to consolidate, future income/expense changes, one-off amounts,
 // income and expense lines that aren't mapped, investment properties and notes.
 
-// Expense / income names that already have their own HubSpot deal property
-// (same list "Fetch from HubSpot" reads in services/hubspotImport.ts).
-const MAPPED_EXPENSES = new Set([
-  'food', 'groceries', 'fun', 'fuel', 'gas', 'gas etc', 'electricity', 'power', 'childcare', 'kids activities',
-  'phone', 'phone etc', 'mobile phone', 'internet', 'internet/media', 'rates', 'council rates', 'water',
-  'boat/jetski/other rego', 'other maintenance', 'kids excursions', 'rent', 'debt repay',
-  'additional expense 1', 'additional expense 2', 'additional expense 3', 'gym', 'subs', 'subscriptions',
-  'pool maintenance', 'pool maint', 'pool', 'school/education', 'medical', 'home costs',
-]);
-const MAPPED_INCOMES = new Set([
-  'primary borrower income', 'partner income', 'primary borrower other income', 'partner other income', 'household income',
-]);
+// Lines with a HubSpot property of their own come from the shared map.
+const MAPPED_EXPENSES = { has: (n: string) => n in EXPENSE_PROPS };
+const MAPPED_INCOMES = { has: (n: string) => n in INCOME_PROPS || n === 'household income' };
 
 const money = (n: number | undefined | null) =>
   new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 2 }).format(Number(n) || 0);
@@ -50,6 +42,10 @@ export const buildScenarioInfo = (s: AppState): string => {
   section('OTHER EXPENSES (no HubSpot field)', (s.expenses || [])
     .filter(e => !e.managed && e.amount > 0 && !MAPPED_EXPENSES.has((e.name || '').trim().toLowerCase()))
     .map(e => `${e.name || 'Expense'} (${e.category}): ${money(e.amount)} a ${per[e.frequency] ?? e.frequency}`));
+
+  section('OTHER INSURANCE (no HubSpot field)', (s.insurances || [])
+    .filter(i => i.amount !== null && !(i.key in INSURANCE_PROPS))
+    .map(i => `${i.name}: ${money(i.amount)} a ${per[i.frequency] ?? i.frequency}`));
 
   section('INVESTMENT PROPERTIES', (s.investmentProperties || []).map(p => {
     const value = p.propertyValue ?? p.value ?? 0;

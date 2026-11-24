@@ -25,9 +25,11 @@ import { storageService, Scenario } from './services/storageService';
 import { checkSession, login } from './services/api';
 import { buildZapierFields } from './services/zapierFields';
 import { buildScenarioInfo } from './services/scenarioInfo';
+import { buildDealWrite, buildMappingNoteRows } from './services/hubspotMap';
 import { assessDnq } from './services/dnq';
 import HubSpotImport from './components/HubSpotImport';
-import { CloudDownload } from 'lucide-react';
+import MappingCheck from './components/MappingCheck';
+import { CloudDownload, Network } from 'lucide-react';
 import Notepad from './components/Notepad';
 import Assistant from './components/Assistant';
 import AICommandCenter from './components/AICommandCenter';
@@ -391,6 +393,7 @@ const App: React.FC = () => {
   const [isRevertModalOpen, setIsRevertModalOpen] = useState(false);
   const [isAICommandOpen, setIsAICommandOpen] = useState(false);
   const [isHubSpotImportOpen, setIsHubSpotImportOpen] = useState(false);
+  const [isMappingOpen, setIsMappingOpen] = useState(false);
   const [infoToast, setInfoToast] = useState('');
   const [warningToast, setWarningToast] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -526,13 +529,14 @@ const App: React.FC = () => {
   };
 
   const postDnqNoteToHubSpot = async () => {
-    setInfoToast('Adding the DNQ note and scenario info to HubSpot…');
+    setInfoToast('Updating the HubSpot deal…');
     try {
       const assessment = assessDnq(appState, calculations);
       // Use the deal picked in "Fetch from HubSpot" if it was for this same client.
       const f = appState.hubspotFetched;
       const dealId = f?.dealId && f.email?.toLowerCase() === appState.clientEmail.trim().toLowerCase() ? f.dealId : undefined;
-      const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null, dealId, scenarioInfo: buildScenarioInfo(appState) });
+      const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null, dealId, scenarioInfo: buildScenarioInfo(appState),
+        dealProperties: buildDealWrite(appState), fieldRows: buildMappingNoteRows(appState) });
       // Zapier may still be creating the HubSpot contact/deal, so retry a few times.
       let res: Response | null = null;
       let data: any = {};
@@ -544,7 +548,8 @@ const App: React.FC = () => {
       }
       if (!res || !res.ok) throw new Error(data.error || `HubSpot note failed (${res?.status})`);
       if (data.scenarioError) setWarningToast(`DNQ note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
-      else setInfoToast(`DNQ note and scenario info added to HubSpot deal${data.dealName ? `: ${data.dealName}` : ''}`);
+      else if (data.skipped?.length) setWarningToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated (${data.written} fields), but HubSpot rejected: ${data.skipped.map((x: any) => `${x.name} (${x.reason})`).join(', ')}. See "Check mapping".`);
+      else setInfoToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated: ${data.written} fields, DNQ note and all-fields note added`);
     } catch (error) {
       console.error('HubSpot DNQ note error:', error);
       setWarningToast(`The DNQ note wasn't added to HubSpot. ${error instanceof Error ? error.message : ''}`);
@@ -764,6 +769,7 @@ const App: React.FC = () => {
           <CrownLogo className="h-14 w-auto" />
           <div className="flex items-center gap-2 overflow-x-auto flex-nowrap py-1 pr-2">
               <button onClick={() => setIsHubSpotImportOpen(true)} title="Fetch from HubSpot" className={`${buttonBaseClasses} bg-orange-50 text-orange-700 border-orange-200`}><CloudDownload className="h-5 w-5"/><span className="text-sm font-black hidden sm:inline uppercase">Fetch from HubSpot</span></button>
+              <button onClick={() => setIsMappingOpen(true)} title="Check which HubSpot property each field uses" className={`${buttonBaseClasses} bg-sky-50 text-sky-700 border-sky-200`}><Network className="h-5 w-5"/><span className="text-sm font-black hidden sm:inline uppercase">Check mapping</span></button>
               <button onClick={() => setIsAICommandOpen(true)} title="Ask Mike" className={`${buttonBaseClasses} bg-indigo-50 text-indigo-700 border-indigo-200`}><SparklesIcon className="h-5 w-5"/><span className="text-sm font-black hidden sm:inline uppercase">Ask Mike</span></button>
               <button onClick={handleOpenSaveModal} title="Save Scenario" className={buttonBaseClasses}><SaveIcon className="h-5 w-5"/><span className="text-sm font-semibold hidden sm:inline">Save Scenario</span></button>
               <button onClick={() => setIsLoadModalOpen(true)} title="Load Scenarios" className={buttonBaseClasses}><FolderOpenIcon className="h-5 w-5"/><span className="text-sm font-semibold hidden sm:inline">Scenarios</span></button>
@@ -822,6 +828,7 @@ const App: React.FC = () => {
           </div>
 
           <Assistant appState={appState} calculations={calculations} activeTab={currentTabLabel} />
+          <MappingCheck isOpen={isMappingOpen} onClose={() => setIsMappingOpen(false)} appState={appState} />
           <HubSpotImport
             isOpen={isHubSpotImportOpen}
             onClose={() => setIsHubSpotImportOpen(false)}

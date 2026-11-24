@@ -1,6 +1,8 @@
 
 import FetchedBadge from './common/FetchedBadge';
 import { fetchedTitle } from './../services/hubspotImport';
+import MapInfo from './common/MapInfo';
+import { SCALAR_PROPS } from '../services/hubspotMap';
 import React, { useState, useEffect } from 'react';
 import { AppState, OtherDebt, Frequency } from '../types';
 import Card from './common/Card';
@@ -284,9 +286,9 @@ const Tab1_CurrentLoan: React.FC<Props> = ({ appState, setAppState, calculations
             />
         }>
           <div className="space-y-6">
-            <SliderInput label="Property Value" badge={<FetchedBadge title={fetchedTitle(appState, 'propertyValue', loan.propertyValue)} />} value={loan.propertyValue} onChange={val => handleLoanChange('propertyValue', val)} min={100000} max={10000000} step={10000} unit="$" />
-            <SliderInput label="Loan Amount" badge={<FetchedBadge title={fetchedTitle(appState, 'loanAmount', loan.amount)} />} value={loan.amount} onChange={val => handleLoanChange('amount', val)} min={50000} max={5000000} step={1000} unit="$" />
-            <SliderInput label="Offset Balance" badge={<FetchedBadge title={fetchedTitle(appState, 'offset', loan.offsetBalance)} />} value={loan.offsetBalance || 0} onChange={val => handleLoanChange('offsetBalance', val)} min={0} max={loan.amount} step={1000} unit="$" />
+            <SliderInput label="Property Value" badge={<><MapInfo props={SCALAR_PROPS.propertyValue} label="Property value" /><FetchedBadge title={fetchedTitle(appState, 'propertyValue', loan.propertyValue)} /></>} value={loan.propertyValue} onChange={val => handleLoanChange('propertyValue', val)} min={100000} max={10000000} step={10000} unit="$" />
+            <SliderInput label="Loan Amount" badge={<><MapInfo props={SCALAR_PROPS.loanAmount} label="Loan amount" /><FetchedBadge title={fetchedTitle(appState, 'loanAmount', loan.amount)} /></>} value={loan.amount} onChange={val => handleLoanChange('amount', val)} min={50000} max={5000000} step={1000} unit="$" />
+            <SliderInput label="Offset Balance" badge={<><MapInfo props={SCALAR_PROPS.offset} label="Offset balance" /><FetchedBadge title={fetchedTitle(appState, 'offset', loan.offsetBalance)} /></>} value={loan.offsetBalance || 0} onChange={val => handleLoanChange('offsetBalance', val)} min={0} max={loan.amount} step={1000} unit="$" />
             <div className="text-right -mt-4 text-sm text-[var(--text-color-muted)] print:hidden flex items-center justify-end gap-1">
               <span>Net Loan Amount:</span>
               <span className="font-bold text-[var(--text-color)]">{formatCurrency(netLoanAmount)}</span>
@@ -294,10 +296,10 @@ const Tab1_CurrentLoan: React.FC<Props> = ({ appState, setAppState, calculations
                   <InfoIcon className="h-4 w-4"/>
               </Tooltip>
             </div>
-            <SliderInput label="Interest Rate" badge={<FetchedBadge title={fetchedTitle(appState, 'rate', loan.interestRate)} />} value={loan.interestRate} onChange={val => handleLoanChange('interestRate', val)} min={1} max={15} step={0.05} unit="%" />
+            <SliderInput label="Interest Rate" badge={<><MapInfo props={SCALAR_PROPS.rate} label="Interest rate" /><FetchedBadge title={fetchedTitle(appState, 'rate', loan.interestRate)} /></>} value={loan.interestRate} onChange={val => handleLoanChange('interestRate', val)} min={1} max={15} step={0.05} unit="%" />
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-color)]">Repayments<FetchedBadge title={fetchedTitle(appState, 'repayment', loan.repayment)} /></label>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-color)]">Repayments<MapInfo props={SCALAR_PROPS.repayment} label="Repayments" /><FetchedBadge title={fetchedTitle(appState, 'repayment', loan.repayment)} /></label>
                 <div className="hidden print:block text-sm text-black font-medium">
                     {formatCurrency(loan.repayment)} / {loan.frequency}
                 </div>
@@ -353,6 +355,7 @@ const Tab1_CurrentLoan: React.FC<Props> = ({ appState, setAppState, calculations
                     />
                     <div className="flex items-center gap-2">
                         <label className="text-sm text-[var(--text-color-muted)]">Age:</label>
+                        <MapInfo props={index < 2 ? SCALAR_PROPS[index === 0 ? 'p1age' : 'p2age'] : null} label="Age" />
                         <FetchedBadge title={fetchedTitle(appState, index === 0 ? 'p1age' : 'p2age', person.age)} className="order-last" />
                         <input 
                             type="number" 

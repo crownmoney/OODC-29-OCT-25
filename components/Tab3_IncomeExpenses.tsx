@@ -1,3 +1,5 @@
+import MapInfo from './common/MapInfo';
+import { EXPENSE_PROPS, INCOME_PROPS } from '../services/hubspotMap';
 import React, { useState, useEffect, useMemo } from 'react';
 import FetchedBadge from './common/FetchedBadge';
 import { fetchedFrom } from '../services/hubspotImport';
@@ -1002,7 +1004,7 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
         <div key={income.id} className="items-center relative mb-2">
             {income.fromHubSpot ? <FetchedBadge title={fetchedFrom(appState.hubspotFetched)} className="absolute -top-2 -left-1.5 z-10 shadow-sm" /> : income.isImported && <div className="absolute -top-2.5 -left-2 bg-indigo-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-wider print:hidden">Imported</div>}
             <div className="grid grid-cols-12 gap-2 print:hidden">
-              <input type="text" value={income.name} onChange={e => handleListChange(incomes, (l) => setAppState(s => ({...s, incomes: l})), index, 'name', e.target.value)} className={`col-span-4 ${inputClasses} ${income.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Income Source"/>
+              <div className="relative col-span-4"><input type="text" value={income.name} onChange={e => handleListChange(incomes, (l) => setAppState(s => ({...s, incomes: l})), index, 'name', e.target.value)} className={`w-full pr-7 ${inputClasses} ${income.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Income Source"/><MapInfo props={INCOME_PROPS[(income.name || '').trim().toLowerCase()] ?? null} label={income.name} className="absolute right-1.5 top-1/2 -translate-y-1/2" /></div>
               <input type="number" value={income.amount || ''} onChange={e => handleListChange(incomes, (l) => setAppState(s => ({...s, incomes: l})), index, 'amount', parseFloat(e.target.value) || 0)} className={`col-span-4 ${inputClasses} ${income.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Amount"/>
               <select value={income.frequency} onChange={e => handleListChange(incomes, (l) => setAppState(s => ({...s, incomes: l})), index, 'frequency', e.target.value)} className={`custom-select col-span-3 ${inputClasses} ${income.amount === 0 ? 'highlight-fade-input' : ''}`}>
                 <option value="weekly">Weekly</option>
@@ -1039,7 +1041,7 @@ const Tab3_IncomeExpenses: React.FC<Props> = ({ appState, setAppState, calculati
             <div key={expense.id} className="items-center relative mb-2">
                 {expense.fromHubSpot ? <FetchedBadge title={fetchedFrom(appState.hubspotFetched)} className="absolute -top-2 -left-1.5 z-10 shadow-sm" /> : expense.isImported && <div className="absolute -top-2.5 -left-2 bg-indigo-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-wider print:hidden">Imported</div>}
                 <div className="grid grid-cols-12 gap-2 print:hidden">
-                  <input type="text" value={expense.name} onChange={e => handleListChange(expenses, (l) => setAppState(s => ({...s, expenses: l})), originalIndex, 'name', e.target.value)} className={`col-span-4 ${inputClasses} ${expense.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Expense Item"/>
+                  <div className="relative col-span-4"><input type="text" value={expense.name} onChange={e => handleListChange(expenses, (l) => setAppState(s => ({...s, expenses: l})), originalIndex, 'name', e.target.value)} className={`w-full pr-7 ${inputClasses} ${expense.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Expense Item"/><MapInfo props={EXPENSE_PROPS[(expense.name || '').trim().toLowerCase()] ?? null} label={expense.name} className="absolute right-1.5 top-1/2 -translate-y-1/2" /></div>
                   <input type="number" value={expense.amount || ''} onChange={e => handleListChange(expenses, (l) => setAppState(s => ({...s, expenses: l})), originalIndex, 'amount', parseFloat(e.target.value) || 0)} className={`col-span-4 ${inputClasses} ${expense.amount === 0 ? 'highlight-fade-input' : ''}`} placeholder="Amount"/>
                   <select value={expense.frequency} onChange={e => handleListChange(expenses, (l) => setAppState(s => ({...s, expenses: l})), originalIndex, 'frequency', e.target.value)} className={`custom-select col-span-3 ${inputClasses} ${expense.amount === 0 ? 'highlight-fade-input' : ''}`}>
                     <option value="weekly">Weekly</option>
