@@ -26,6 +26,7 @@ import { checkSession, login } from './services/api';
 import { buildZapierFields } from './services/zapierFields';
 import { buildScenarioInfo } from './services/scenarioInfo';
 import { buildDealWrite, buildMappingNoteRows } from './services/hubspotMap';
+import { buildUploadReport } from './services/hubspotNote';
 import { assessDnq } from './services/dnq';
 import HubSpotImport from './components/HubSpotImport';
 import MappingCheck from './components/MappingCheck';
@@ -536,7 +537,8 @@ const App: React.FC = () => {
       const f = appState.hubspotFetched;
       const dealId = f?.dealId && f.email?.toLowerCase() === appState.clientEmail.trim().toLowerCase() ? f.dealId : undefined;
       const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null, dealId, scenarioInfo: buildScenarioInfo(appState),
-        dealProperties: buildDealWrite(appState), fieldRows: buildMappingNoteRows(appState) });
+        dealProperties: buildDealWrite(appState), fieldRows: buildMappingNoteRows(appState),
+        report: buildUploadReport(appState, calculations, assessment) });
       // Zapier may still be creating the HubSpot contact/deal, so retry a few times.
       let res: Response | null = null;
       let data: any = {};
@@ -547,9 +549,9 @@ const App: React.FC = () => {
         if (res.ok || !data.retry) break;
       }
       if (!res || !res.ok) throw new Error(data.error || `HubSpot note failed (${res?.status})`);
-      if (data.scenarioError) setWarningToast(`DNQ note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
+      if (data.scenarioError) setWarningToast(`Note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
       else if (data.skipped?.length) setWarningToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated (${data.written} fields), but HubSpot rejected: ${data.skipped.map((x: any) => `${x.name} (${x.reason})`).join(', ')}. See "Check mapping".`);
-      else setInfoToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated: ${data.written} fields, DNQ note and all-fields note added`);
+      else setInfoToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated: ${data.written} fields, Crown Money note added`);
     } catch (error) {
       console.error('HubSpot DNQ note error:', error);
       setWarningToast(`The DNQ note wasn't added to HubSpot. ${error instanceof Error ? error.message : ''}`);
