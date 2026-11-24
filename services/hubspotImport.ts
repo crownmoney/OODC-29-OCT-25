@@ -1,6 +1,7 @@
 import { AppState, ExpenseItem, Frequency, IncomeItem } from '../types';
 
 import { DEFAULT_CAR_SETUP, DEFAULT_INSURANCES, syncManagedItems } from './managedExpenses';
+import { FormNotes, fromFormNotes } from './formNotesParse';
 
 // Maps the fields returned by /api/hubspot-fetch (HubSpot deal fact-find
 // fields + contact basics) onto calculator fields. Each item is shown to the
@@ -14,11 +15,13 @@ export interface HubSpotFetchResult {
   deals?: { id: string; name: string; stage: string; pipeline: string; closed: boolean; created: string; linked?: boolean }[];
   /** Amount + frequency pairs found in HubSpot that have no specific mapping yet. */
   extraPairs?: { amountProp: string; freqProp: string; label: string }[];
+  /** Health check + setter form answers saved as notes on the deal. */
+  formNotes?: FormNotes | null;
 }
 
 export interface ImportItem {
   id: string;
-  group: 'Client' | 'Current loan' | 'Income' | 'Expenses' | 'For reference';
+  group: 'Client' | 'Current loan' | 'Other debts' | 'Income' | 'Expenses' | 'For reference';
   label: string;
   value: string;          // display
   source: string;         // HubSpot property name(s)
@@ -59,7 +62,14 @@ const setInsurance = (s: AppState, key: 'health' | 'house' | 'pet' | 'income' | 
 
 export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   const c = r.contact || {};
-  const d = r.deal?.properties || {};
+  const dealProps = r.deal?.properties || {};
+  // Deal fields win; empty ones are filled from the health check / setter notes.
+  const fn = fromFormNotes(r.formNotes, p => dealProps[p] !== undefined && String(dealProps[p]).trim() !== '');
+  const d: Record<string, string> = { ...fn.props, ...dealProps };
+  if (!d.client_first_names && fn.person2Name) {
+    d.client_first_names = `${c.firstname || 'Person 1'} & ${fn.person2Name}`;
+    fn.source.client_first_names = fn.personSource ?? 'note';
+  }
   const items: ImportItem[] = [];
 
   // --- Client ---------------------------------------------------------------
@@ -201,6 +211,30 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   ins('carrego', 'Car rego', 'car_rego', 'car_rego_frequency',
     (s, a, f) => ({ ...s, carSetup: { ...(s.carSetup ?? DEFAULT_CAR_SETUP), rego: { amount: a, frequency: f } } }), 'annually');
 
+  // --- From the notes only: lines with no HubSpot field, and other debts ------------
+  for (const ln of fn.extraLines) {
+    const f = freq(ln.freq, 'monthly');
+    items.push({
+      id: `note-${ln.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, group: 'Expenses', label: ln.label, value: `${money(ln.amount)} ${freqLabel(f)}`,
+      source: ln.source, note: 'No HubSpot field for this line; taken from the note.',
+      apply: s => upsertExpense(s, { name: ln.label, amount: ln.amount, frequency: f, category: ln.category }),
+    });
+  }
+  for (const debt of fn.debts) {
+    items.push({
+      id: `debt-${debt.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, group: 'Other debts', label: debt.name, value: `${money(debt.amount)} owing`,
+      source: debt.source, note: "Interest rate, repayment and term weren't given; fill them in on the Current Loan tab.",
+      apply: s => {
+        const list = [...(s.otherDebts || [])];
+        const i = list.findIndex(x => (x.name || '').toLowerCase() === debt.name.toLowerCase());
+        const item = { id: i >= 0 ? list[i].id : Date.now() + Math.floor(Math.random() * 1e6), name: debt.name, amount: debt.amount,
+          interestRate: i >= 0 ? list[i].interestRate : 0, repayment: i >= 0 ? list[i].repayment : 0, frequency: (i >= 0 ? list[i].frequency : 'monthly') as Frequency, remainingTerm: i >= 0 ? list[i].remainingTerm : 0 };
+        if (i >= 0) list[i] = item; else list.push(item);
+        return { ...s, otherDebts: list };
+      },
+    });
+  }
+
   // --- Reference only -------------------------------------------------------------
   const ref = (id: string, label: string, prop: string, fmt: (v: string) => string = v => v) => {
     if (d[prop] !== undefined) items.push({ id, group: 'For reference', label, value: fmt(d[prop]), source: `deal: ${prop}` });
@@ -213,6 +247,17 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   ref('oodcinfo', 'OODC Latest Scenario Info (last upload)', 'oodc_latest_scenario_info');
   ref('totexp', 'Total monthly expenses in HubSpot', 'total_monthly_expenses__current_', m);
 
+  // Say where note-sourced values came from.
+  for (const it of items) {
+    if (!it.source.startsWith('deal:')) continue;
+    const props = it.source.slice(5).split(',').map(x => x.trim());
+    const fromNote = props.map(p => fn.source[p]).find(Boolean);
+    if (fromNote) {
+      it.source = `${fromNote} · deal field ${props[0]} is empty`;
+      if (it.group === 'Income' && /^Health Check note/.test(fromNote)) it.note = 'From the health check form (after tax).';
+      if (/^\$1(\.00)? /.test(it.value)) it.note = [it.note, 'Entered as $1 on the form; this often means "none".'].filter(Boolean).join(' ');
+    }
+  }
   return items;
 };
 

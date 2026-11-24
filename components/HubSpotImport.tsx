@@ -12,7 +12,7 @@ interface Props {
   onImported: (count: number) => void;
 }
 
-const GROUPS: ImportItem['group'][] = ['Client', 'Current loan', 'Income', 'Expenses', 'For reference'];
+const GROUPS: ImportItem['group'][] = ['Client', 'Current loan', 'Other debts', 'Income', 'Expenses', 'For reference'];
 
 const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState, onImported }) => {
   const [email, setEmail] = useState(appState.clientEmail || '');

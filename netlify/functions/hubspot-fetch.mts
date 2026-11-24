@@ -1,6 +1,7 @@
 import type { Config } from "@netlify/functions";
 import { hasValidSession } from "../lib/session.mts";
 import { HubSpotError, findContactId, listDeals, defaultDeal, readProperties, discoverFrequencyPairs } from "../lib/hubspot.mts";
+import { readFormNotes } from "../lib/formNotes.mts";
 
 // "Fetch from HubSpot": returns the client's contact basics and the fact-find
 // fields on their newest open deal. The app maps them onto calculator fields
@@ -68,6 +69,7 @@ export default async (req: Request) => {
     const extraPairs = pairs.filter(p => !known.has(p.amountProp) && !known.has(p.freqProp));
     const propsToRead = [...DEAL_PROPS, ...extraPairs.flatMap(p => [p.amountProp, p.freqProp])];
     // If HubSpot rejects a not-yet-created *_frequency field, retry without them.
+    const notesP = deal ? readFormNotes(deal.id, contactId) : Promise.resolve(null);
     const dealProps = deal
       ? await readProperties("deals", deal.id, propsToRead).catch(err => {
           if (err instanceof HubSpotError && err.status === 400) return readProperties("deals", deal.id, propsToRead.filter(p => !p.endsWith("_frequency") || BASE_FREQ.has(p) || extraPairs.some(x => x.freqProp === p)));
@@ -79,6 +81,8 @@ export default async (req: Request) => {
       contact,
       deal: deal ? { id: deal.id, name: deal.name, stage: deal.stage, properties: dealProps } : null,
       deals,
+      // Health check + setter form answers saved as notes (used where deal fields are empty).
+      formNotes: await notesP,
       extraPairs,
     });
   } catch (error) {
