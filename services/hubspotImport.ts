@@ -310,6 +310,8 @@ export const applyImport = (state: AppState, items: ImportItem[], selected: Set<
     // Drop sample incomes and incomes from a previous client's import.
     s = { ...s, incomes: (s.incomes || []).filter(i => i.isImported || !(prevIncome.has(i.id) || SAMPLE_INCOME_NAMES.includes((i.name || '').toLowerCase()))) };
   }
+  // Sample offset ($50,000) isn't the client's: clear it unless HubSpot gave one.
+  if (chosen.length && !chosen.some(it => it.id === 'offset') && s.loan?.offsetBalance === 50000) s = { ...s, loan: { ...s.loan, offsetBalance: 0 } };
   if (chosen.length) {
     // Blank sample figures and a previous client's imported figures that this client doesn't have.
     s = { ...s, expenses: (s.expenses || []).map(e => {
