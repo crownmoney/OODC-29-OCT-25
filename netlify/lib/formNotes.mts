@@ -17,7 +17,9 @@ const setterRows = (html: string) => {
   let section = "";
   for (const tr of html.match(/<tr[\s\S]*?<\/tr>/gi) ?? []) {
     const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => toText(m[1]));
-    if (/background:#250B40/i.test(tr) && cells.length) { section = cells[0]; continue; } // section header bar
+    // Section header bars read "<Section> | 8 of 12 answered" (older notes: dark purple bar).
+    if (cells.length === 2 && /^\d+ of \d+ answered$/i.test(cells[1])) { section = cells[0]; continue; }
+    if (/background:#250B40/i.test(tr) && cells.length === 1) { section = cells[0]; continue; }
     if (cells.length === 2 && cells[0] && cells[1]) rows.push({ section, label: cells[0], value: cells[1] });
   }
   return rows;
