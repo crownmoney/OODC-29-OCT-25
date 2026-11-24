@@ -211,6 +211,8 @@ export interface LoanSummary {
 /** What the last "Fetch from HubSpot" filled in: field key -> value at import time. */
 export interface HubSpotFetched {
   deal: string;
+  dealId?: string;
+  email?: string;
   at: string;
   values: Record<string, string | number>;
 }

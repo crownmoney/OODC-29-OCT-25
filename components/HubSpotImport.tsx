@@ -56,7 +56,7 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
 
   const doImport = () => {
     const count = importable.filter(i => selected.has(i.id)).length;
-    setAppState(s => applyImport(s, items, selected, result?.deal?.name ?? ''));
+    setAppState(s => applyImport(s, items, selected, result?.deal?.name ?? '', result?.deal?.id ?? '', result?.email ?? ''));
     onImported(count);
     onClose();
     setResult(null);
@@ -147,8 +147,9 @@ const HubSpotImport: React.FC<Props> = ({ isOpen, onClose, appState, setAppState
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                                 <span className="text-sm font-semibold text-[var(--text-color)]">{it.label}</span>
-                                <span className="text-sm font-bold text-[var(--text-color)]">{it.value}</span>
+                                {it.value.length <= 60 && <span className="text-sm font-bold text-[var(--text-color)]">{it.value}</span>}
                               </div>
+                              {it.value.length > 60 && <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-line rounded-lg bg-[var(--input-bg-color)] p-2 text-xs text-[var(--text-color)]">{it.value}</p>}
                               <p className="text-[11px] text-[var(--text-color-muted)]">From {it.source}</p>
                               {it.note && <p className="mt-0.5 flex items-start gap-1 text-[11px] font-semibold text-amber-700"><AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />{it.note}</p>}
                             </div>

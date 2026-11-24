@@ -1,67 +1,18 @@
 import type { Config } from "@netlify/functions";
 import { hasValidSession } from "../lib/session.mts";
+import { HubSpotError, hs, findContactId, listDeals, defaultDeal } from "../lib/hubspot.mts";
 
-// Posts the DNQ assessment as a note on the client's HubSpot DEAL.
+// Posts the DNQ assessment as a note on the client's HubSpot DEAL and writes
+// the "OODC Latest Scenario Info" deal property (oodc_latest_scenario_info).
 // Runs alongside (not instead of) the Zapier upload.
 //
-// Flow: find contact by email -> associated deals -> newest open deal
-// (else newest deal) -> create note associated to that deal.
+// Flow: find contact by email -> the deal chosen in "Fetch from HubSpot" if
+// it belongs to this client, else the newest open deal -> note + property.
 // The HubSpot private app token lives only in Netlify (HUBSPOT_PRIVATE_KEY).
 // Required private-app scopes: crm.objects.contacts.read,
-// crm.objects.deals.read, crm.objects.deals.write (notes on deals).
+// crm.objects.deals.read, crm.objects.deals.write (notes + deal property).
 
-const API = () => Netlify.env.get("HUBSPOT_API_BASE") || "https://api.hubapi.com";
 const NOTE_TO_DEAL = 214; // HubSpot-defined association type: note -> deal
-
-class HubSpotError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
-
-const hs = async (path: string, init: RequestInit = {}) => {
-  const res = await fetch(`${API()}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${Netlify.env.get("HUBSPOT_PRIVATE_KEY")}`,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) {
-    const scopes = data?.errors?.[0]?.context?.requiredGranularScopes ?? data?.context?.requiredGranularScopes;
-    const detail = scopes ? ` Missing HubSpot scope: ${[].concat(scopes).join(", ")}.` : "";
-    throw new HubSpotError(res.status, `HubSpot ${res.status}: ${data?.message || res.statusText}.${detail}`);
-  }
-  return data;
-};
-
-const findDeal = async (email: string) => {
-  const search = await hs("/crm/v3/objects/contacts/search", {
-    method: "POST",
-    body: JSON.stringify({
-      filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
-      properties: ["email", "firstname", "lastname"],
-      limit: 1,
-    }),
-  });
-  const contact = search?.results?.[0];
-  if (!contact) return { contact: null, deal: null };
-
-  const assoc = await hs(`/crm/v4/objects/contacts/${contact.id}/associations/deals?limit=100`);
-  const dealIds: string[] = (assoc?.results ?? []).map((r: any) => String(r.toObjectId));
-  if (!dealIds.length) return { contact, deal: null };
-
-  const batch = await hs("/crm/v3/objects/deals/batch/read", {
-    method: "POST",
-    body: JSON.stringify({ properties: ["dealname", "createdate", "hs_is_closed"], inputs: dealIds.map(id => ({ id })) }),
-  });
-  const deals = (batch?.results ?? []).sort(
-    (a: any, b: any) => new Date(b.properties?.createdate ?? 0).getTime() - new Date(a.properties?.createdate ?? 0).getTime(),
-  );
-  const open = deals.find((d: any) => d.properties?.hs_is_closed !== "true");
-  return { contact, deal: open ?? deals[0] ?? null };
-};
 
 // ---------------------------------------------------------------------------
 // Note formatting (server-side, escaped)
@@ -138,31 +89,45 @@ export default async (req: Request) => {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
   const email = typeof p?.email === "string" ? p.email.trim().toLowerCase() : "";
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !p?.assessment || JSON.stringify(p).length > 50_000) {
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !p?.assessment || JSON.stringify(p).length > 120_000) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
   if (p.override && (typeof p.override.reason !== "string" || p.override.reason.trim().length < 10)) {
     return Response.json({ error: "A reason is required when the verdict is changed." }, { status: 400 });
   }
+  const wantedDeal = typeof p.dealId === "string" && /^\d{1,20}$/.test(p.dealId) ? p.dealId : "";
+  const scenarioInfo = typeof p.scenarioInfo === "string" ? p.scenarioInfo.slice(0, 60_000) : "";
 
   try {
     // Single attempt; the browser retries a few times while Zapier may
     // still be creating the contact/deal.
-    const found = await findDeal(email);
-    if (!found.contact) return Response.json({ error: `No HubSpot contact found for ${email}.`, retry: true }, { status: 404 });
-    if (!found.deal) return Response.json({ error: `No deal found on the HubSpot contact for ${email}.`, retry: true }, { status: 404 });
+    const contactId = await findContactId(email);
+    if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}.`, retry: true }, { status: 404 });
+    const deals = await listDeals(contactId, email);
+    const deal = (wantedDeal && deals.find(d => d.id === wantedDeal)) || defaultDeal(deals);
+    if (!deal) return Response.json({ error: `No deal found on the HubSpot contact for ${email}.`, retry: true }, { status: 404 });
 
     const dryRun = p.dryRun === true;
+    let scenarioSaved = false, scenarioError = "";
     if (!dryRun) {
       await hs("/crm/v3/objects/notes", {
         method: "POST",
         body: JSON.stringify({
           properties: { hs_timestamp: new Date().toISOString(), hs_note_body: buildNote(p) },
-          associations: [{ to: { id: found.deal.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] }],
+          associations: [{ to: { id: deal.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] }],
         }),
       });
+      if (scenarioInfo) {
+        try {
+          await hs(`/crm/v3/objects/deals/${deal.id}`, { method: "PATCH", body: JSON.stringify({ properties: { oodc_latest_scenario_info: scenarioInfo } }) });
+          scenarioSaved = true;
+        } catch (err) {
+          scenarioError = err instanceof HubSpotError ? err.message : "Couldn't update the deal.";
+          console.error("Scenario info update failed:", err);
+        }
+      }
     }
-    return Response.json({ ok: true, dryRun, dealId: found.deal.id, dealName: found.deal.properties?.dealname ?? "" });
+    return Response.json({ ok: true, dryRun, dealId: deal.id, dealName: deal.name, scenarioSaved, scenarioError });
   } catch (error) {
     const msg = error instanceof HubSpotError ? error.message : "Couldn't reach HubSpot.";
     console.error("HubSpot note failed:", error);

@@ -39,7 +39,7 @@ export const DEAL_PROPS = [
   "food_frequency", "fun_frequency", "fuel_frequency", "home_costs_frequency",
   "total_monthly_expenses__current_", "monthly_expenses__without_mortgage_",
   // Other debts & savings (reference only)
-  "total_of_other_debts", "debts_being_consolidated", "total_savings",
+  "total_of_other_debts", "debts_being_consolidated", "total_savings", "oodc_latest_scenario_info",
 ];
 
 const BASE_FREQ = new Set(["gas_frequency", "electricity_frequency", "car_insurance_frequency", "car_maintenance_frequency", "car_rego_frequency", "boatjetskiother_rego_frequency", "house_insurance_frequency", "income_protection_frequency", "life_insurance_frequency", "pet_insurance_frequency", "internet_frequency", "phone_frequency", "other_maintenance_frequency", "rates_frequency", "water_frequency", "gym_frequency", "subscriptions_frequency", "kids_activities_netball_frequency", "medical2_frequency", "private_schooleducation_frequency", "childcare_frequency2", "health_insurance_frequency2", "kids_excursions_frequency", "rent_frequency", "debt_repay_frequency", "additional_expense1_frequency", "additional_expense2_frequency", "additional_expense3_frequency", "pool_maintenance_frequency", "childcare_frequency", "health_insurance_frequency", "home_insurance_frequency", "motor_vehicle_frequency", "car_cost_frequency", "phone___internet_frequency", "education_cost_frequency", "medical_cost_frequency", "repayment_frequency", "food_frequency", "fuel_frequency", "net_income_1_frequency", "net_income_2_frequency", "net_income_1_other_frequency", "net_income_2_other_frequency"]);

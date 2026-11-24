@@ -24,6 +24,7 @@ import Sidebar from './components/Sidebar';
 import { storageService, Scenario } from './services/storageService';
 import { checkSession, login } from './services/api';
 import { buildZapierFields } from './services/zapierFields';
+import { buildScenarioInfo } from './services/scenarioInfo';
 import { assessDnq } from './services/dnq';
 import HubSpotImport from './components/HubSpotImport';
 import { CloudDownload } from 'lucide-react';
@@ -525,10 +526,13 @@ const App: React.FC = () => {
   };
 
   const postDnqNoteToHubSpot = async () => {
-    setInfoToast('Adding the DNQ note to HubSpot…');
+    setInfoToast('Adding the DNQ note and scenario info to HubSpot…');
     try {
       const assessment = assessDnq(appState, calculations);
-      const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null });
+      // Use the deal picked in "Fetch from HubSpot" if it was for this same client.
+      const f = appState.hubspotFetched;
+      const dealId = f?.dealId && f.email?.toLowerCase() === appState.clientEmail.trim().toLowerCase() ? f.dealId : undefined;
+      const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null, dealId, scenarioInfo: buildScenarioInfo(appState) });
       // Zapier may still be creating the HubSpot contact/deal, so retry a few times.
       let res: Response | null = null;
       let data: any = {};
@@ -539,7 +543,8 @@ const App: React.FC = () => {
         if (res.ok || !data.retry) break;
       }
       if (!res || !res.ok) throw new Error(data.error || `HubSpot note failed (${res?.status})`);
-      setInfoToast(`DNQ note added to HubSpot deal${data.dealName ? `: ${data.dealName}` : ''}`);
+      if (data.scenarioError) setWarningToast(`DNQ note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
+      else setInfoToast(`DNQ note and scenario info added to HubSpot deal${data.dealName ? `: ${data.dealName}` : ''}`);
     } catch (error) {
       console.error('HubSpot DNQ note error:', error);
       setWarningToast(`The DNQ note wasn't added to HubSpot. ${error instanceof Error ? error.message : ''}`);

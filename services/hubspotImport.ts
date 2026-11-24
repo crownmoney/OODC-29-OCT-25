@@ -210,6 +210,7 @@ export const buildImportItems = (r: HubSpotFetchResult): ImportItem[] => {
   ref('debtsconsol', 'Debts being consolidated', 'debts_being_consolidated');
   ref('savings', 'Savings', 'total_savings', m);
   ref('othexp', 'Other expenses (notes)', 'other_expenses_text');
+  ref('oodcinfo', 'OODC Latest Scenario Info (last upload)', 'oodc_latest_scenario_info');
   ref('totexp', 'Total monthly expenses in HubSpot', 'total_monthly_expenses__current_', m);
 
   return items;
@@ -246,7 +247,7 @@ export const fetchedTitle = (s: AppState, key: string, current: unknown): string
 export const fetchedFrom = (f: AppState['hubspotFetched']) =>
   f ? `Fetched from HubSpot${f.deal ? ` (deal: ${f.deal})` : ''} on ${new Date(f.at).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Fetched from HubSpot';
 
-export const applyImport = (state: AppState, items: ImportItem[], selected: Set<string>, dealName = ''): AppState => {
+export const applyImport = (state: AppState, items: ImportItem[], selected: Set<string>, dealName = '', dealId = '', email = ''): AppState => {
   // Remember what an earlier import put in, then clear the flags so only
   // rows set by THIS import end up flagged.
   const prevIncome = new Set((state.incomes || []).filter(i => i.isImported).map(i => i.id));
@@ -286,6 +287,6 @@ export const applyImport = (state: AppState, items: ImportItem[], selected: Set<
     ...s,
     incomes: (s.incomes || []).map(i => ({ ...i, fromHubSpot: !!i.isImported })),
     expenses: (s.expenses || []).map(e => (e.managed ? e : { ...e, fromHubSpot: !!e.isImported })),
-    hubspotFetched: { deal: dealName, at: new Date().toISOString(), values },
+    hubspotFetched: { deal: dealName, dealId, email, at: new Date().toISOString(), values },
   };
 };
