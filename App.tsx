@@ -539,22 +539,16 @@ const App: React.FC = () => {
       const body = JSON.stringify({ email: appState.clientEmail, assessment, override: appState.dnqOverride ?? null, dealId, scenarioInfo: buildScenarioInfo(appState),
         dealProperties: buildDealWrite(appState), fieldRows: buildMappingNoteRows(appState),
         report: buildUploadReport(appState, calculations, assessment) });
-      // Zapier may still be creating the HubSpot contact/deal, so retry a few times.
-      let res: Response | null = null;
-      let data: any = {};
-      for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt) await new Promise(r => setTimeout(r, 10_000));
-        res = await fetch('/api/hubspot-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-        data = await res.json().catch(() => ({}));
-        if (res.ok || !data.retry) break;
-      }
-      if (!res || !res.ok) throw new Error(data.error || `HubSpot note failed (${res?.status})`);
+      // The client's contact and deal must already exist in HubSpot.
+      const res = await fetch('/api/hubspot-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const data: any = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HubSpot update failed (${res.status})`);
       if (data.scenarioError) setWarningToast(`Note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
       else if (data.skipped?.length) setWarningToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated (${data.written} fields), but HubSpot rejected: ${data.skipped.map((x: any) => `${x.name} (${x.reason})`).join(', ')}. See "Check mapping".`);
       else setInfoToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated: ${data.written} fields, Crown Money note added`);
     } catch (error) {
       console.error('HubSpot DNQ note error:', error);
-      setWarningToast(`The DNQ note wasn't added to HubSpot. ${error instanceof Error ? error.message : ''}`);
+      setWarningToast(`HubSpot wasn't updated. ${error instanceof Error ? error.message : ''}`);
     }
   };
   

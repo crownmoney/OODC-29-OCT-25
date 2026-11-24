@@ -101,13 +101,12 @@ export default async (req: Request) => {
   const scenarioInfo = typeof p.scenarioInfo === "string" ? p.scenarioInfo.slice(0, 60_000) : "";
 
   try {
-    // Single attempt; the browser retries a few times while Zapier may
-    // still be creating the contact/deal.
+    // The client's contact and deal must already exist (the app never creates them).
     const contactId = await findContactId(email);
-    if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}.`, retry: true }, { status: 404 });
+    if (!contactId) return Response.json({ error: `No HubSpot contact found for ${email}. This app only updates clients who are already in HubSpot with a deal; check the email on the Summary tab.` }, { status: 404 });
     const deals = await listDeals(contactId, email);
     const deal = (wantedDeal && deals.find(d => d.id === wantedDeal)) || defaultDeal(deals);
-    if (!deal) return Response.json({ error: `No deal found on the HubSpot contact for ${email}.`, retry: true }, { status: 404 });
+    if (!deal) return Response.json({ error: `${email} is in HubSpot but has no deal. Create the deal in HubSpot first, then upload again.` }, { status: 404 });
 
     const dryRun = p.dryRun === true;
     let scenarioSaved = false, scenarioError = "";
