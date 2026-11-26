@@ -131,12 +131,12 @@ export const buildUploadReport = (s: AppState, calc: any, a: DnqAssessment): Upl
   };
   const car = s.carSetup ?? DEFAULT_CAR_SETUP;
   const carRow = (label: string, c: { amount: number | null; frequency: Frequency }) => ({ label, value: c.amount === null ? 'Not entered' : amt(c.amount, c.frequency), tone: c.amount === null ? 'warn' as Tone : undefined });
-  const ins = (s.insurances ?? DEFAULT_INSURANCES).filter(i => i.amount !== null);
+  const ins = [...(s.insurances ?? DEFAULT_INSURANCES), { name: 'Car Insurance', ...car.insurance }].filter(i => i.amount !== null);
   const blank = exp.filter(e => !e.amount).map(e => e.name).filter(Boolean);
   sections.push({ title: 'Living expenses', subs: [
     catSub('Food, fun & fuel', 'FFF'), catSub('Hard expenses', 'Hard Expenses'), catSub('Soft expenses', 'Soft Expenses'), catSub('Other', 'Other'),
     { title: 'Car', rows: [
-      carRow('Maintenance', car.maintenance), carRow('Insurance', car.insurance), carRow('Rego', car.rego),
+      carRow('Maintenance', car.maintenance), carRow('Rego', car.rego),
       { label: 'Costs start', value: car.isFuture ? `From ${auDate(car.futureStartDate)}` : 'Now' },
       { label: 'Car lease', value: car.hasLease === null ? 'Not answered' : car.hasLease ? `Yes – balloon ${money(car.balloonAmount)} on ${auDate(car.balloonDate)}` : 'No' },
     ] },

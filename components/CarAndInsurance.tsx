@@ -96,15 +96,15 @@ const CarAndInsurance: React.FC<Props> = ({ appState, setAppState }) => {
   const updateInsurance = (key: InsuranceItem['key'], patch: Partial<InsuranceItem>) =>
     update({ insurances: insurances.map(i => (i.key === key ? { ...i, ...patch } : i)) });
 
-  const carUnanswered = [car.maintenance, car.insurance, car.rego].filter(c => c.amount === null).length;
+  // Car insurance is asked once, in the (optional) Insurance section below.
+  const carUnanswered = [car.maintenance, car.rego].filter(c => c.amount === null).length;
 
   return (
     <div className="space-y-6 mt-6">
       {/* Car */}
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg-color)] p-5 space-y-3 shadow-sm">
-        <SectionHeader icon={Car} title="Car" subtitle="Include all cars in the household. Enter 0 if a cost doesn't apply." remaining={carUnanswered + (car.hasLease === null ? 1 : 0)} total={4} />
+        <SectionHeader icon={Car} title="Car" subtitle="Include all cars in the household. Enter 0 if a cost doesn't apply." remaining={carUnanswered + (car.hasLease === null ? 1 : 0)} total={3} />
         <CostRow label="Car Maintenance" cost={car.maintenance} onChange={c => updateCar({ maintenance: c })} map={CAR_PROPS.maintenance} fetched={fetchedTitle(appState, 'carmaint', car.maintenance.amount)} />
-        <CostRow label="Car Insurance" cost={car.insurance} onChange={c => updateCar({ insurance: c })} map={CAR_PROPS.insurance} fetched={fetchedTitle(appState, 'carins', car.insurance.amount)} />
         <CostRow label="Car Rego" cost={car.rego} onChange={c => updateCar({ rego: c })} map={CAR_PROPS.rego} fetched={fetchedTitle(appState, 'carrego', car.rego.amount)} />
 
         <div className="pt-2 border-t border-dashed border-[var(--border-color)] print:hidden">

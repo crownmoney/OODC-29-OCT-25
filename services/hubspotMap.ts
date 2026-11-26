@@ -153,7 +153,7 @@ export const buildMapRows = (s: AppState): MapRow[] => {
   const car = s.carSetup ?? DEFAULT_CAR_SETUP;
   (['maintenance', 'insurance', 'rego'] as const).forEach(k => {
     const c = car[k], p = CAR_PROPS[k];
-    rows.push({ key: `car:${k}`, section: 'Car', label: `Car ${k}`, value: c.amount === null ? 'not entered' : `${money(c.amount)} ${PER[c.frequency]}`, props: p,
+    rows.push({ key: `car:${k}`, section: k === 'insurance' ? 'Insurance' : 'Car', label: `Car ${k}`, value: c.amount === null ? 'not entered' : `${money(c.amount)} ${PER[c.frequency]}`, props: p,
       write: c.amount === null ? {} : pairWrite(p, c.amount, c.frequency) });
   });
   for (const i of s.insurances ?? DEFAULT_INSURANCES) {
