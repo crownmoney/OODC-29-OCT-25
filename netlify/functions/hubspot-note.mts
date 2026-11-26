@@ -111,6 +111,7 @@ export default async (req: Request) => {
     const dryRun = p.dryRun === true;
     let scenarioSaved = false, scenarioError = "";
     let written: string[] = [], skipped: { name: string; reason: string }[] = [];
+    let notesAdded = 0, noteError = "";
     if (!dryRun) {
       // 1) Write the calculator's fields (and the scenario summary) to the deal.
       const dealProps = { ...(p.dealProperties && typeof p.dealProperties === "object" ? p.dealProperties : {}), ...(scenarioInfo ? { oodc_latest_scenario_info: scenarioInfo } : {}) };
@@ -123,19 +124,28 @@ export default async (req: Request) => {
         scenarioError = err instanceof HubSpotError ? err.message : "Couldn't update the deal.";
         console.error("Deal property update failed:", err);
       }
-      // 2) One Crown Money branded note with everything, incl. what was saved.
-      const body = p.report && typeof p.report === "object"
+      // 2) Crown Money branded note (split into parts only if it's too long for one note).
+      const bodies = p.report && typeof p.report === "object"
         ? renderReport(p.report, Array.isArray(p.fieldRows) ? p.fieldRows : [], written, skipped)
-        : buildNote(p); // older app versions
-      await hs("/crm/v3/objects/notes", {
-        method: "POST",
-        body: JSON.stringify({
-          properties: { hs_timestamp: new Date().toISOString(), hs_note_body: body },
-          associations: [{ to: { id: deal.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] }],
-        }),
-      });
+        : [buildNote(p)]; // older app versions
+      for (const body of bodies) {
+        try {
+          await hs("/crm/v3/objects/notes", {
+            method: "POST",
+            body: JSON.stringify({
+              properties: { hs_timestamp: new Date().toISOString(), hs_note_body: body },
+              associations: [{ to: { id: deal.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] }],
+            }),
+          });
+          notesAdded++;
+        } catch (err) {
+          noteError = err instanceof HubSpotError ? err.message : "Couldn't add the note.";
+          console.error("Note failed:", err);
+          break;
+        }
+      }
     }
-    return Response.json({ ok: true, dryRun, dealId: deal.id, dealName: deal.name, scenarioSaved, scenarioError, written: written.length, skipped });
+    return Response.json({ ok: true, dryRun, dealId: deal.id, dealName: deal.name, scenarioSaved, scenarioError, written: written.length, skipped, notesAdded, noteError });
   } catch (error) {
     const msg = error instanceof HubSpotError ? error.message : "Couldn't reach HubSpot.";
     console.error("HubSpot note failed:", error);

@@ -543,12 +543,13 @@ const App: React.FC = () => {
       const res = await fetch('/api/hubspot-note', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       const data: any = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HubSpot update failed (${res.status})`);
-      if (data.scenarioError) setWarningToast(`Note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
+      if (data.noteError) setWarningToast(`HubSpot deal fields updated (${data.written}), but the Crown Money note wasn't added. ${data.noteError}`);
+      else if (data.scenarioError) setWarningToast(`Note added, but "OODC Latest Scenario Info" wasn't updated. ${data.scenarioError}`);
       else if (data.skipped?.length) setWarningToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated (${data.written} fields), but HubSpot rejected: ${data.skipped.map((x: any) => `${x.name} (${x.reason})`).join(', ')}. See "Check mapping".`);
-      else setInfoToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated: ${data.written} fields, Crown Money note added`);
+      else setInfoToast(`HubSpot deal${data.dealName ? ` ${data.dealName}` : ''} updated: ${data.written} fields, Crown Money note added${data.notesAdded > 1 ? ` (${data.notesAdded} parts)` : ''}`);
     } catch (error) {
       console.error('HubSpot DNQ note error:', error);
-      setWarningToast(`HubSpot wasn't updated. ${error instanceof Error ? error.message : ''}`);
+      setWarningToast(`HubSpot wasn't updated. ${error instanceof Error ? error.message.slice(0, 300) : ''}`);
     }
   };
   

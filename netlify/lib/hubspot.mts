@@ -4,7 +4,7 @@
 export const hubspotBase = () => Netlify.env.get("HUBSPOT_API_BASE") || "https://api.hubapi.com";
 
 export class HubSpotError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public raw: string = message) { super(message); }
 }
 
 export const hs = async (path: string, init: RequestInit = {}) => {
@@ -22,7 +22,10 @@ export const hs = async (path: string, init: RequestInit = {}) => {
   if (!res.ok) {
     const scopes = data?.errors?.[0]?.context?.requiredGranularScopes ?? data?.context?.requiredGranularScopes;
     const detail = scopes ? ` Missing HubSpot scope: ${[].concat(scopes).join(", ")}.` : "";
-    throw new HubSpotError(res.status, `HubSpot ${res.status}: ${data?.message || res.statusText}.${detail}`);
+    let msg = String(data?.message || res.statusText);
+    if (/MAX_CHARACTERS|over max characters/i.test(msg)) msg = "A value was longer than HubSpot allows";
+    // Keep the full text for parsing rejected property names, but cap what users see.
+    throw new HubSpotError(res.status, `HubSpot ${res.status}: ${msg.length > 400 ? msg.slice(0, 400) + "…" : msg}.${detail}`, msg);
   }
   return data;
 };

@@ -46,10 +46,10 @@ export const writeDealProperties = async (dealId: string, input: unknown) => {
     } catch (err) {
       if (!(err instanceof HubSpotError) || err.status !== 400) throw err;
       // HubSpot lists the bad properties in the message as ..."name":"<prop>"...
-      const bad = [...err.message.matchAll(/\\?"name\\?":\\?"([a-z0-9_]+)\\?"/g)].map(m => m[1]).filter(n => n in props);
+      const bad = [...err.raw.matchAll(/\\?"name\\?":\\?"([a-z0-9_]+)\\?"/g)].map(m => m[1]).filter(n => n in props);
       if (!bad.length) throw err;
       for (const n of bad) {
-        skipped.push({ name: n, reason: /INVALID_OPTION|allowed options/i.test(err.message) ? `"${props[n]}" isn't one of the dropdown options` : "HubSpot rejected the value" });
+        skipped.push({ name: n, reason: /INVALID_OPTION|allowed options/i.test(err.raw) ? `"${props[n]}" isn't one of the dropdown options` : "HubSpot rejected the value" });
         delete props[n];
       }
     }
